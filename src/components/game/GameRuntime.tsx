@@ -38,7 +38,13 @@ type LocalGameState = {
 
 type EncounterStatus = "active" | "victory" | "defeat";
 type SceneStageMode = "intro" | "choice" | "combat" | "reward" | "result";
-type ResultNext = "choice" | "room_select" | "stay" | "run_complete";
+type ResultNext =
+  | "choice"
+  | "room_select"
+  | "stay"
+  | "run_complete"
+  /** Back to current room action choices (exploration not finished). */
+  | "explore_more";
 type ChoiceMode = "room_action" | "room_select";
 type RoomId = "entrance_hall" | "library" | "dining_room" | "boss_room";
 
@@ -47,6 +53,39 @@ type ResultCard = {
   message: string;
   cta: string;
   next: ResultNext;
+};
+
+/** Local pacing: multiple interactions per room; combat must be won if it started. */
+type RoomPacingState = {
+  interactionCount: number;
+  combatTriggered: boolean;
+  combatResolved: boolean;
+};
+
+function initialRoomPacing(): RoomPacingState {
+  return {
+    interactionCount: 0,
+    combatTriggered: false,
+    combatResolved: false,
+  };
+}
+
+function roomExitCriteriaMet(p: RoomPacingState): boolean {
+  return p.interactionCount >= 2 && (!p.combatTriggered || p.combatResolved);
+}
+
+const EXPLORE_RESULT: ResultCard = {
+  title: "A moment passes",
+  message: "The room still breathes around you. There is more to uncover.",
+  cta: "Continue Exploring",
+  next: "explore_more",
+};
+
+const COMBAT_WIN_MID_ROOM: ResultCard = {
+  title: "Encounter Over",
+  message: "Your foes fall quiet. The space around you is not yet spent.",
+  cta: "Return to Room",
+  next: "explore_more",
 };
 
 const BASE_DAMAGE = 5;
@@ -179,6 +218,7 @@ export function GameRuntime({ initialGameState }: GameRuntimeProps) {
   const [narrationLog, setNarrationLog] = useState<string[]>([
     ROOM_INTRO.entrance_hall,
   ]);
+  const [roomPacing, setRoomPacing] = useState<RoomPacingState>(initialRoomPacing);
 
   function pushNarration(line: string) {
     setNarrationLog((prev) => [line, ...prev].slice(0, 4));
@@ -193,7 +233,7 @@ export function GameRuntime({ initialGameState }: GameRuntimeProps) {
       return {
         title: "Entrance Cleared",
         message: "You survived the hall. Choose which wing to explore next.",
-        cta: "Choose Next Room",
+        cta: "Leave Room",
         next: "room_select",
       };
     }
@@ -210,7 +250,7 @@ export function GameRuntime({ initialGameState }: GameRuntimeProps) {
     return {
       title: `${ROOM_LABELS[room]} Cleared`,
       message: "You can press onward through the haunted estate.",
-      cta: "Continue",
+      cta: "Leave Room",
       next: "room_select",
     };
   }
@@ -227,6 +267,7 @@ export function GameRuntime({ initialGameState }: GameRuntimeProps) {
     setChoiceMode("room_action");
     setSceneStage("intro");
     setEncounterStatus("active");
+    setRoomPacing(initialRoomPacing());
     setResultCard(null);
     setRewardOptions([]);
     setRewardTargetPlayerId(null);
@@ -241,6 +282,7 @@ export function GameRuntime({ initialGameState }: GameRuntimeProps) {
   }
 
   function beginRoomCombat(room: RoomId) {
+    setRoomPacing((p) => ({ ...p, combatTriggered: true }));
     const enemies = generateEncounter(room);
     setSceneStage("combat");
     setEncounterStatus("active");
@@ -436,8 +478,19 @@ export function GameRuntime({ initialGameState }: GameRuntimeProps) {
 
     if (encounterCleared) {
       setEncounterStatus("victory");
-      markRoomComplete(currentRoom);
-      startRewardStage(activePlayer.id, roomCompletionCard(currentRoom));
+      const pacingAfterWin: RoomPacingState = {
+        ...roomPacing,
+        combatResolved: true,
+      };
+      setRoomPacing(pacingAfterWin);
+      const canLeaveRoom = roomExitCriteriaMet(pacingAfterWin);
+
+      if (canLeaveRoom) {
+        markRoomComplete(currentRoom);
+        startRewardStage(activePlayer.id, roomCompletionCard(currentRoom));
+      } else {
+        startRewardStage(activePlayer.id, COMBAT_WIN_MID_ROOM);
+      }
       pushNarration(
         `${activePlayer.name} ${
           outcome === "critical"
@@ -515,6 +568,15 @@ export function GameRuntime({ initialGameState }: GameRuntimeProps) {
   function handleRoomActionChoice(choiceId: string) {
     if (sceneStage !== "choice" || choiceMode !== "room_action") return;
 
+    const nextInteraction = roomPacing.interactionCount + 1;
+    setRoomPacing((p) => ({ ...p, interactionCount: p.interactionCount + 1 }));
+
+    const canExitNow = roomExitCriteriaMet({
+      interactionCount: nextInteraction,
+      combatTriggered: roomPacing.combatTriggered,
+      combatResolved: roomPacing.combatResolved,
+    });
+
     if (currentRoom === "entrance_hall") {
       if (choiceId === "staircase") {
         pushNarration("You step toward the staircase. Something cold manifests ahead.");
@@ -523,16 +585,18 @@ export function GameRuntime({ initialGameState }: GameRuntimeProps) {
       }
       if (choiceId === "doorway") {
         pushNarration("You search the doorway and find only cold silence.");
-        markRoomComplete("entrance_hall");
-        startRewardStage(
-          activePlayer?.id ?? gameState.players[0]?.id ?? "",
-          {
+        if (canExitNow) {
+          markRoomComplete("entrance_hall");
+          startRewardStage(activePlayer?.id ?? gameState.players[0]?.id ?? "", {
             title: "A Hollow Discovery",
             message: "Nothing stirs here. Another wing calls to you.",
-            cta: "Choose Next Room",
+            cta: "Leave Room",
             next: "room_select",
-          },
-        );
+          });
+        } else {
+          setResultCard(EXPLORE_RESULT);
+          setSceneStage("result");
+        }
         return;
       }
       applyRiskPenaltyThenCombat(
@@ -546,8 +610,16 @@ export function GameRuntime({ initialGameState }: GameRuntimeProps) {
     if (currentRoom === "library") {
       if (choiceId === "shelves") {
         pushNarration("Dusty tomes crumble in your hands. The library falls quiet.");
-        markRoomComplete("library");
-        startRewardStage(activePlayer?.id ?? gameState.players[0]?.id ?? "", roomCompletionCard("library"));
+        if (canExitNow) {
+          markRoomComplete("library");
+          startRewardStage(
+            activePlayer?.id ?? gameState.players[0]?.id ?? "",
+            roomCompletionCard("library"),
+          );
+        } else {
+          setResultCard(EXPLORE_RESULT);
+          setSceneStage("result");
+        }
         return;
       }
       if (choiceId === "nook") {
@@ -574,8 +646,8 @@ export function GameRuntime({ initialGameState }: GameRuntimeProps) {
         setResultCard({
           title: "Shattered Wards",
           message: "Ancient ink flakes away. The confrontation is inevitable.",
-          cta: "Face the Spirit",
-          next: "choice",
+          cta: "Continue Exploring",
+          next: "explore_more",
         });
         setSceneStage("result");
         return;
@@ -595,8 +667,16 @@ export function GameRuntime({ initialGameState }: GameRuntimeProps) {
     }
     if (choiceId === "cabinet") {
       pushNarration("The cabinet holds only dust and silence.");
-      markRoomComplete("dining_room");
-      startRewardStage(activePlayer?.id ?? gameState.players[0]?.id ?? "", roomCompletionCard("dining_room"));
+      if (canExitNow) {
+        markRoomComplete("dining_room");
+        startRewardStage(
+          activePlayer?.id ?? gameState.players[0]?.id ?? "",
+          roomCompletionCard("dining_room"),
+        );
+      } else {
+        setResultCard(EXPLORE_RESULT);
+        setSceneStage("result");
+      }
       return;
     }
     applyRiskPenaltyThenCombat(
@@ -615,21 +695,24 @@ export function GameRuntime({ initialGameState }: GameRuntimeProps) {
     if (!resultCard) return;
     if (encounterStatus === "defeat") return;
 
+    const next = resultCard.next;
     setResultCard(null);
 
-    if (resultCard.next === "choice") {
+    if (next === "explore_more" || next === "choice") {
       setChoiceMode("room_action");
       setSceneStage("choice");
+      setEncounterStatus("active");
       return;
     }
 
-    if (resultCard.next === "room_select") {
+    if (next === "room_select") {
+      setEncounterStatus("active");
       setChoiceMode("room_select");
       setSceneStage("choice");
       return;
     }
 
-    if (resultCard.next === "run_complete") {
+    if (next === "run_complete") {
       router.push("/");
     }
   }
@@ -640,6 +723,7 @@ export function GameRuntime({ initialGameState }: GameRuntimeProps) {
     setSceneStage("intro");
     setEncounterStatus("active");
     setCompletedRooms([]);
+    setRoomPacing(initialRoomPacing());
     setResultCard(null);
     setRewardOptions([]);
     setRewardTargetPlayerId(null);
@@ -840,21 +924,13 @@ export function GameRuntime({ initialGameState }: GameRuntimeProps) {
                     </button>
                   </>
                 ) : (
-                  <>
-                    <button
-                      type="button"
-                      onClick={handleResultContinue}
-                      className="rounded-md border border-zinc-600 bg-zinc-800 px-4 py-2 text-sm text-zinc-100"
-                    >
-                      {resultCard.cta}
-                    </button>
-                    <button
-                      type="button"
-                      className="rounded-md border border-zinc-600 bg-zinc-900 px-4 py-2 text-sm text-zinc-300"
-                    >
-                      Return (Soon)
-                    </button>
-                  </>
+                  <button
+                    type="button"
+                    onClick={handleResultContinue}
+                    className="rounded-md border border-zinc-600 bg-zinc-800 px-4 py-2 text-sm text-zinc-100"
+                  >
+                    {resultCard.cta}
+                  </button>
                 )}
               </div>
             </div>
