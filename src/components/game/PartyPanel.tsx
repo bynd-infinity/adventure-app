@@ -14,16 +14,21 @@ export function PartyPanel({ players, activePlayerId }: PartyPanelProps) {
       <ul className="flex flex-col gap-1.5">
         {players.map((p) => {
           const isActive = activePlayerId === p.id;
+          const isDefeated = p.hp <= 0;
           return (
             <li
               key={p.id}
               className={`rounded border px-2 py-1.5 ${
-                isActive
+                isDefeated
+                  ? "border-zinc-800/80 bg-zinc-900/30 opacity-55"
+                  : isActive
                   ? "border-amber-500/70 bg-amber-950/30"
                   : "border-zinc-700/80 bg-zinc-950/50"
               }`}
             >
-              <div className="truncate text-sm font-medium text-zinc-100">{p.name}</div>
+              <div className="truncate text-sm font-medium text-zinc-100">
+                {p.name}
+              </div>
               <div className="text-xs text-zinc-400">{p.class || "—"} · HP {p.hp}</div>
             </li>
           );
