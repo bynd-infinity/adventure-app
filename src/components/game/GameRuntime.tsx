@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { Enemy, GameState, Player } from "@/types";
 import {
   applyIncomingDamageToEnemy,
@@ -10,6 +10,7 @@ import {
   pickEnemyTargetPlayerIndex,
 } from "@/lib/game/enemies";
 import { generateRewardOptions, type RewardOption } from "@/lib/game/rewards";
+import { HAUNTED_HOUSE_JOURNAL_ENTRIES } from "@/config/story/hauntedHouseJournal";
 import {
   hauntedHouseEntrance,
   metaVillainEffects,
@@ -22,6 +23,7 @@ import {
 } from "@/lib/story/effects";
 import type { StoryResultNext } from "@/lib/story/types";
 import { ActionBar } from "./ActionBar";
+import { JournalPanel } from "./JournalPanel";
 import { EnemyPanel } from "./EnemyPanel";
 import { GameTopBar } from "./GameTopBar";
 import { PartyPanel } from "./PartyPanel";
@@ -238,6 +240,34 @@ export function GameRuntime({ initialGameState }: GameRuntimeProps) {
   const [metaNarration, setMetaNarration] = useState<string | null>(null);
   const metaOnceKeysRef = useRef<Set<string>>(new Set());
   const [storyFlags, setStoryFlags] = useState<Record<string, boolean>>({});
+  const [journalOpen, setJournalOpen] = useState(false);
+  const [journalToast, setJournalToast] = useState<string | null>(null);
+  const prevJournalUnlockCountRef = useRef(0);
+
+  const discoveredJournalEntries = useMemo(
+    () =>
+      HAUNTED_HOUSE_JOURNAL_ENTRIES.filter((e) => storyFlags[e.unlockFlag]).map(
+        ({ id, title, text }) => ({ id, title, text }),
+      ),
+    [storyFlags],
+  );
+
+  useEffect(() => {
+    const n = discoveredJournalEntries.length;
+    if (n > prevJournalUnlockCountRef.current) {
+      prevJournalUnlockCountRef.current = n;
+      const raf = requestAnimationFrame(() => {
+        setJournalToast("Clue added");
+      });
+      const t = window.setTimeout(() => setJournalToast(null), 2600);
+      return () => {
+        cancelAnimationFrame(raf);
+        window.clearTimeout(t);
+      };
+    }
+    prevJournalUnlockCountRef.current = n;
+    return undefined;
+  }, [discoveredJournalEntries.length]);
 
   useEffect(() => {
     if (!metaNarration) return;
@@ -869,6 +899,7 @@ export function GameRuntime({ initialGameState }: GameRuntimeProps) {
   function handleRoomSelectChoice(nextRoom: RoomId) {
     if (sceneStage !== "choice" || choiceMode !== "room_select") return;
     if (nextRoom === "boss_room") {
+      setStoryFlags((prev) => ({ ...prev, journal_boss_warning: true }));
       const ctx = {
         canExitRoom: false,
         usedMetaOnceKeys: metaOnceKeysRef.current,
@@ -925,6 +956,9 @@ export function GameRuntime({ initialGameState }: GameRuntimeProps) {
     metaOnceKeysRef.current.clear();
     setMetaNarration(null);
     setStoryFlags({});
+    setJournalOpen(false);
+    setJournalToast(null);
+    prevJournalUnlockCountRef.current = 0;
     setResultCard(null);
     setRewardOptions([]);
     setRewardTargetPlayerId(null);
@@ -1017,6 +1051,29 @@ export function GameRuntime({ initialGameState }: GameRuntimeProps) {
           </p>
         </div>
       ) : null}
+      {!journalOpen ? (
+        <button
+          type="button"
+          onClick={() => setJournalOpen(true)}
+          className="pointer-events-auto fixed right-0 top-[4.75rem] z-[53] rounded-l-md border border-violet-700/55 border-r-0 bg-zinc-950/92 px-2.5 py-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-violet-200 shadow-lg backdrop-blur-sm hover:bg-zinc-900/95"
+        >
+          Notes
+        </button>
+      ) : null}
+      {journalToast ? (
+        <div
+          role="status"
+          aria-live="polite"
+          className="pointer-events-none fixed right-3 top-[7.5rem] z-[54] rounded border border-zinc-600/35 bg-zinc-950/88 px-2 py-1 text-[10px] text-zinc-400"
+        >
+          {journalToast}
+        </div>
+      ) : null}
+      <JournalPanel
+        open={journalOpen}
+        onClose={() => setJournalOpen(false)}
+        entries={discoveredJournalEntries}
+      />
       {process.env.NODE_ENV === "development" ? (
         <div className="pointer-events-none fixed bottom-2 left-2 z-[60] max-w-[14rem] rounded border border-zinc-600/40 bg-black/75 px-2 py-1 font-mono text-[10px] text-zinc-400">
           <div className="font-semibold uppercase tracking-wide text-zinc-500">
