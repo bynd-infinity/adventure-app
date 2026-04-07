@@ -5,22 +5,19 @@ type EnemyPanelProps = {
 };
 
 export function EnemyPanel({ enemies }: EnemyPanelProps) {
+  const enemy = enemies[0];
+
+  if (!enemy) {
+    return null;
+  }
+
   return (
-    <section className="flex flex-col rounded-lg border border-rose-900/40 bg-zinc-900/60 p-4">
-      <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-rose-400">
-        Foes
-      </h2>
-      <ul className="flex flex-col gap-2">
-        {enemies.map((e) => (
-          <li
-            key={e.id}
-            className="rounded-md border border-rose-900/50 bg-rose-950/20 px-3 py-2"
-          >
-            <div className="font-medium text-rose-100">{e.name}</div>
-            <div className="text-sm text-rose-200/70">HP {e.hp}</div>
-          </li>
-        ))}
-      </ul>
+    <section className="flex w-full max-w-sm items-center justify-center px-4">
+      <div className="w-full rounded-xl border border-rose-500/60 bg-rose-950/25 p-6 text-center shadow-[0_0_40px_rgba(244,63,94,0.2)] backdrop-blur-sm">
+        <p className="text-xs font-semibold uppercase tracking-widest text-rose-300">Enemy</p>
+        <p className="mt-2 text-2xl font-semibold text-rose-100">{enemy.name}</p>
+        <p className="mt-2 text-base text-rose-200/80">HP {enemy.hp}</p>
+      </div>
     </section>
   );
 }

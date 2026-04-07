@@ -24,20 +24,19 @@ function GameShell({ gameState }: { gameState: GameState }) {
   return (
     <div className="relative flex min-h-screen flex-1 flex-col bg-zinc-950 bg-cover bg-center bg-no-repeat bg-[url('/backgrounds/entrance-hall.png')] text-zinc-100">
       <div
-        className="pointer-events-none absolute inset-0 bg-black/60"
+        className="pointer-events-none absolute inset-0 bg-black/40"
         aria-hidden
       />
-      <div className="relative z-10 flex min-h-full flex-1 flex-col">
+      <div className="relative z-10 flex min-h-screen flex-1 flex-col pb-40">
         <GameTopBar scene={gameState.scene} />
-
-        <div className="mx-auto grid w-full max-w-6xl flex-1 grid-cols-1 gap-4 p-4 md:grid-cols-3 md:gap-6 md:p-6">
-          <PartyPanel
-            players={gameState.players}
-            activePlayerId={activePlayer?.id ?? null}
-          />
-          <SceneStage scene={gameState.scene} />
+        <PartyPanel
+          players={gameState.players}
+          activePlayerId={activePlayer?.id ?? null}
+        />
+        <main className="flex flex-1 items-center justify-center">
           <EnemyPanel enemies={gameState.enemies} />
-        </div>
+        </main>
+        <SceneStage scene={gameState.scene} />
 
         <ActionBar />
       </div>

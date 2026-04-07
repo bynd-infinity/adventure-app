@@ -6,8 +6,8 @@ type GameTopBarProps = {
 
 export function GameTopBar({ scene }: GameTopBarProps) {
   return (
-    <header className="border-b border-violet-950/80 bg-zinc-900/80 px-6 py-4">
-      <h1 className="text-center text-xl font-semibold tracking-tight text-violet-100 md:text-2xl">
+    <header className="pointer-events-none absolute inset-x-0 top-0 z-20 px-4 py-4 text-center md:px-6">
+      <h1 className="inline-block rounded-md border border-violet-800/60 bg-zinc-950/65 px-4 py-1.5 text-sm font-semibold tracking-tight text-violet-100 shadow-lg md:text-base">
         Haunted House — {sceneDisplayName(scene)}
       </h1>
     </header>
