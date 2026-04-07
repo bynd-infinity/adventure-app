@@ -298,6 +298,12 @@ export function GameRuntime({ initialGameState }: GameRuntimeProps) {
     setSceneStage("choice");
   }
 
+  const showCombatLayer = sceneStage === "combat";
+  const showIntroLayer = sceneStage === "intro";
+  const showChoiceLayer = sceneStage === "choice";
+  const showResultLayer = sceneStage === "result" && !!resultCard;
+  const mutedHud = !showCombatLayer;
+
   return (
     <div className="relative flex min-h-screen flex-1 flex-col bg-zinc-950 bg-cover bg-center bg-no-repeat bg-[url('/backgrounds/entrance-hall.png')] text-zinc-100">
       <div className="pointer-events-none absolute inset-0 bg-black/40" aria-hidden />
@@ -307,22 +313,31 @@ export function GameRuntime({ initialGameState }: GameRuntimeProps) {
           players={gameState.players}
           activePlayerId={activePlayer?.id ?? null}
         />
-        <main className="flex flex-1 items-center justify-center">
-          <EnemyPanel enemies={gameState.enemies} />
-        </main>
-        <SceneStage scene={gameState.scene} narrationLog={narrationLog} />
-        <ActionBar
-          onAttack={handleAttack}
-          attackDisabled={
-            !activePlayer ||
-            getLivingEnemies(gameState).length === 0 ||
-            gameState.phase !== "player" ||
-            encounterStatus !== "active" ||
-            sceneStage !== "combat"
-          }
-        />
+        {showCombatLayer ? (
+          <>
+            <main className="flex flex-1 items-center justify-center">
+              <EnemyPanel enemies={gameState.enemies} />
+            </main>
+            <SceneStage narrationLog={narrationLog} />
+          </>
+        ) : (
+          <main className="flex flex-1 items-center justify-center" />
+        )}
 
-        {sceneStage === "intro" ? (
+        <div className={mutedHud ? "opacity-35" : undefined}>
+          <ActionBar
+            onAttack={handleAttack}
+            attackDisabled={
+              !activePlayer ||
+              getLivingEnemies(gameState).length === 0 ||
+              gameState.phase !== "player" ||
+              encounterStatus !== "active" ||
+              sceneStage !== "combat"
+            }
+          />
+        </div>
+
+        {showIntroLayer ? (
           <div className="absolute inset-0 z-40 flex items-center justify-center px-4">
             <div className="w-full max-w-xl rounded-xl border border-violet-700/60 bg-zinc-950/85 p-6 text-center shadow-xl backdrop-blur-sm">
               <h2 className="text-2xl font-semibold text-violet-100">
@@ -342,12 +357,15 @@ export function GameRuntime({ initialGameState }: GameRuntimeProps) {
           </div>
         ) : null}
 
-        {sceneStage === "choice" ? (
+        {showChoiceLayer ? (
           <div className="absolute inset-x-0 bottom-24 z-40 flex justify-center px-4 md:bottom-28">
             <div className="w-full max-w-2xl rounded-xl border border-violet-700/60 bg-zinc-950/85 p-4 shadow-xl backdrop-blur-sm">
               <h3 className="text-center text-sm font-semibold uppercase tracking-wider text-violet-200">
                 Choose Your Move
               </h3>
+              <p className="mt-2 text-center text-sm text-zinc-300">
+                {narrationLog[0] ?? "The hall waits for your decision."}
+              </p>
               <div className="mt-3 grid gap-2 md:grid-cols-3">
                 <button
                   type="button"
@@ -375,7 +393,7 @@ export function GameRuntime({ initialGameState }: GameRuntimeProps) {
           </div>
         ) : null}
 
-        {sceneStage === "result" && resultCard ? (
+        {showResultLayer && resultCard ? (
           <div className="absolute inset-0 z-40 flex items-center justify-center px-4">
             <div className="w-full max-w-md rounded-xl border border-violet-700/60 bg-zinc-950/85 p-6 text-center shadow-xl backdrop-blur-sm">
               <h2 className="text-2xl font-semibold text-violet-100">

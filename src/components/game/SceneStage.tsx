@@ -1,23 +1,17 @@
-import { sceneDisplayName } from "@/lib/game/sceneDisplay";
-
 type SceneStageProps = {
-  scene: string;
   narrationLog: string[];
 };
 
-export function SceneStage({ scene, narrationLog }: SceneStageProps) {
+export function SceneStage({ narrationLog }: SceneStageProps) {
   return (
     <section className="absolute inset-x-0 bottom-24 z-20 flex justify-center px-4 md:bottom-28">
-      <div className="w-full max-w-2xl rounded-lg border border-violet-800/60 bg-zinc-950/70 p-4 text-center shadow-lg backdrop-blur-sm">
-        <span className="text-[10px] font-semibold uppercase tracking-widest text-violet-300">
-          Scene
-        </span>
-        <p className="mt-2 text-lg font-medium text-violet-100">
-          {sceneDisplayName(scene)}
+      <div className="w-full max-w-3xl rounded-lg border border-zinc-700/70 bg-zinc-950/70 p-3 shadow-lg backdrop-blur-sm">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-400">
+          Combat Log
         </p>
-        <div className="mt-2 space-y-1 text-left">
+        <div className="mt-2 space-y-1">
           {narrationLog.map((line, idx) => (
-            <p key={`${idx}-${line}`} className="text-sm text-zinc-300">
+            <p key={`${idx}-${line}`} className="text-sm text-zinc-200">
               {line}
             </p>
           ))}
