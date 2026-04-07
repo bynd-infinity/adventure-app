@@ -9,18 +9,22 @@ import {
   generateEncounter,
   pickEnemyTargetPlayerIndex,
 } from "@/lib/game/enemies";
-import { generateRewardOptions, type RewardOption } from "@/lib/game/rewards";
+import { pickRandomReward } from "@/lib/game/rewards";
 import { HAUNTED_HOUSE_JOURNAL_ENTRIES } from "@/config/story/hauntedHouseJournal";
 import {
   hauntedHouseEntrance,
   metaVillainEffects,
 } from "@/config/story/hauntedHouse";
-import { findStoryChoice, getStoryScene } from "@/lib/story/engine";
-import { storyConditionsPass } from "@/lib/story/conditions";
+import { getStoryScene } from "@/lib/story/engine";
 import {
   applyStandaloneMetaEffects,
   processStoryEffects,
+  type ProcessedStoryEffects,
 } from "@/lib/story/effects";
+import {
+  resolveExplorationAction,
+  type ExplorationActionKind,
+} from "@/lib/game/explorationResolve";
 import type { StoryResultNext } from "@/lib/story/types";
 import { ActionBar } from "./ActionBar";
 import { JournalPanel } from "./JournalPanel";
@@ -50,7 +54,13 @@ type LocalGameState = {
 };
 
 type EncounterStatus = "active" | "victory" | "defeat";
-type SceneStageMode = "intro" | "choice" | "combat" | "reward" | "result";
+type SceneStageMode =
+  | "intro"
+  | "action"
+  | "outcome"
+  | "choice"
+  | "combat"
+  | "result";
 type ResultNext = StoryResultNext;
 type ChoiceMode = "room_action" | "room_select";
 type RoomId = "entrance_hall" | "library" | "dining_room" | "boss_room";
@@ -67,6 +77,10 @@ type RoomPacingState = {
   interactionCount: number;
   combatTriggered: boolean;
   combatResolved: boolean;
+  /** Action categories used at least once this visit (exploration telemetry). */
+  usedSearch: boolean;
+  usedInspect: boolean;
+  usedListen: boolean;
 };
 
 function initialRoomPacing(): RoomPacingState {
@@ -74,19 +88,15 @@ function initialRoomPacing(): RoomPacingState {
     interactionCount: 0,
     combatTriggered: false,
     combatResolved: false,
+    usedSearch: false,
+    usedInspect: false,
+    usedListen: false,
   };
 }
 
 function roomExitCriteriaMet(p: RoomPacingState): boolean {
   return p.interactionCount >= 2 && (!p.combatTriggered || p.combatResolved);
 }
-
-const EXPLORE_RESULT: ResultCard = {
-  title: "A moment passes",
-  message: "The room still breathes around you. There is more to uncover.",
-  cta: "Continue Exploring",
-  next: "explore_more",
-};
 
 const COMBAT_WIN_MID_ROOM: ResultCard = {
   title: "Encounter Over",
@@ -220,8 +230,6 @@ export function GameRuntime({ initialGameState }: GameRuntimeProps) {
   const [currentRoom, setCurrentRoom] = useState<RoomId>("entrance_hall");
   const [completedRooms, setCompletedRooms] = useState<RoomId[]>([]);
   const [resultCard, setResultCard] = useState<ResultCard | null>(null);
-  const [rewardOptions, setRewardOptions] = useState<RewardOption[]>([]);
-  const [rewardTargetPlayerId, setRewardTargetPlayerId] = useState<string | null>(null);
   const [narrationLog, setNarrationLog] = useState<string[]>(() => {
     const intro = getStoryScene(
       hauntedHouseEntrance,
@@ -243,6 +251,10 @@ export function GameRuntime({ initialGameState }: GameRuntimeProps) {
   const [journalOpen, setJournalOpen] = useState(false);
   const [journalToast, setJournalToast] = useState<string | null>(null);
   const prevJournalUnlockCountRef = useRef(0);
+  const [outcomeOverlay, setOutcomeOverlay] = useState<{
+    title: string;
+    message: string;
+  } | null>(null);
 
   const discoveredJournalEntries = useMemo(
     () =>
@@ -310,16 +322,66 @@ export function GameRuntime({ initialGameState }: GameRuntimeProps) {
     };
   }
 
-  function startRewardStage(targetPlayerId: string, nextCard: ResultCard) {
-    setRewardTargetPlayerId(targetPlayerId);
-    setRewardOptions(generateRewardOptions(3));
+  function grantRandomRewardThenShowResult(
+    targetPlayerId: string,
+    nextCard: ResultCard,
+  ) {
+    const reward = pickRandomReward();
+    setGameState((prev) => {
+      const fallbackIndex = getFirstLivingPlayerIndex(prev) ?? 0;
+      let idx = prev.players.findIndex((p) => p.id === targetPlayerId);
+      if (idx < 0 || (prev.players[idx]?.hp ?? 0) <= 0) {
+        idx = fallbackIndex;
+      }
+      const target = prev.players[idx];
+      if (!target) return prev;
+      const updated = reward.apply({
+        hp: target.hp,
+        maxHp: target.maxHp,
+        power: target.power,
+        guard: target.guard,
+        mind: target.mind,
+        skill: target.skill,
+      });
+      return {
+        ...prev,
+        players: prev.players.map((p, i) =>
+          i === idx
+            ? {
+                ...p,
+                hp: clampHp(Math.min(updated.hp, updated.maxHp)),
+                maxHp: updated.maxHp,
+                power: updated.power,
+                guard: updated.guard,
+                mind: updated.mind,
+                skill: updated.skill,
+              }
+            : p,
+        ),
+      };
+    });
+
+    pushNarration(rewardNarrationLabel(reward.id));
+
+    const rewardMeta = applyStandaloneMetaEffects(
+      [metaVillainEffects.afterFirstReward],
+      {
+        canExitRoom: false,
+        usedMetaOnceKeys: metaOnceKeysRef.current,
+      },
+    );
+    if (rewardMeta) {
+      setMetaNarration(rewardMeta);
+    }
+
     setResultCard(nextCard);
-    setSceneStage("reward");
+    setSceneStage("result");
   }
 
   function enterRoom(room: RoomId) {
     setCurrentRoom(room);
     setChoiceMode("room_action");
+    setOutcomeOverlay(null);
     setSceneStage("intro");
     setEncounterStatus("active");
     setRoomPacing(initialRoomPacing());
@@ -328,8 +390,6 @@ export function GameRuntime({ initialGameState }: GameRuntimeProps) {
       setEntranceStorySceneId(hauntedHouseEntrance.initialSceneId);
     }
     setResultCard(null);
-    setRewardOptions([]);
-    setRewardTargetPlayerId(null);
     setGameState((prev) => ({
       ...prev,
       scene: room,
@@ -370,29 +430,7 @@ export function GameRuntime({ initialGameState }: GameRuntimeProps) {
     }));
   }
 
-  function handleEntranceStoryChoice(choiceId: string) {
-    const scene = getStoryScene(hauntedHouseEntrance, entranceStorySceneId);
-    if (!scene || scene.type !== "choice") return;
-
-    const choice = findStoryChoice(scene, choiceId);
-    if (!choice) return;
-
-    const nextInteraction = roomPacing.interactionCount + 1;
-    setRoomPacing((p) => ({ ...p, interactionCount: p.interactionCount + 1 }));
-
-    const canExitNow = roomExitCriteriaMet({
-      interactionCount: nextInteraction,
-      combatTriggered: roomPacing.combatTriggered,
-      combatResolved: roomPacing.combatResolved,
-    });
-
-    if (choice.narrativeLine) pushNarration(choice.narrativeLine);
-
-    const proc = processStoryEffects(choice.effects, {
-      canExitRoom: canExitNow,
-      usedMetaOnceKeys: metaOnceKeysRef.current,
-    });
-
+  function applyProcessedStoryOutcome(proc: ProcessedStoryEffects): boolean {
     if (proc.flagClears.length > 0 || proc.flagSets.length > 0) {
       setStoryFlags((prev) => {
         const next = { ...prev };
@@ -451,7 +489,7 @@ export function GameRuntime({ initialGameState }: GameRuntimeProps) {
             next: "stay",
           });
           setSceneStage("result");
-          return;
+          return true;
         }
       }
     }
@@ -467,28 +505,28 @@ export function GameRuntime({ initialGameState }: GameRuntimeProps) {
         });
         setSceneStage("result");
       }
-      return;
+      return true;
     }
 
     if (proc.grantReward) {
       if (proc.grantReward.markRoomComplete) {
         markRoomComplete(proc.grantReward.markRoomComplete);
       }
-      startRewardStage(
+      grantRandomRewardThenShowResult(
         activePlayer?.id ?? gameState.players[0]?.id ?? "",
         proc.grantReward.completionCard,
       );
-      return;
+      return true;
     }
 
     if (proc.combat) {
       beginRoomCombat(proc.combat.room, {
         entranceResumeSceneId: proc.combat.resumeSceneId,
       });
-      return;
+      return true;
     }
 
-    setEntranceStorySceneId(choice.nextSceneId);
+    return false;
   }
 
   const activePlayerIndex =
@@ -497,6 +535,109 @@ export function GameRuntime({ initialGameState }: GameRuntimeProps) {
       : getFirstLivingPlayerIndex(gameState);
   const activePlayer =
     activePlayerIndex === null ? null : gameState.players[activePlayerIndex];
+
+  function handleExplorationAction(action: ExplorationActionKind) {
+    if (sceneStage !== "action" || choiceMode !== "room_action") return;
+
+    const pacingAfter: RoomPacingState = {
+      ...roomPacing,
+      interactionCount: roomPacing.interactionCount + 1,
+      usedSearch: action === "search" ? true : roomPacing.usedSearch,
+      usedInspect: action === "inspect" ? true : roomPacing.usedInspect,
+      usedListen: action === "listen" ? true : roomPacing.usedListen,
+    };
+    setRoomPacing(pacingAfter);
+
+    const roll = rollDie(20);
+    const canExitNow = roomExitCriteriaMet(pacingAfter);
+
+    const output = resolveExplorationAction(
+      currentRoom,
+      action,
+      roll,
+      storyFlags,
+      pacingAfter,
+    );
+
+    const proc = processStoryEffects(output.effects, {
+      canExitRoom: canExitNow,
+      usedMetaOnceKeys: metaOnceKeysRef.current,
+    });
+
+    if (proc.combat != null || proc.grantReward != null) {
+      pushNarration(output.outcomeMessage);
+    }
+
+    const consumed = applyProcessedStoryOutcome(proc);
+    if (!consumed) {
+      pushNarration(output.outcomeMessage);
+      setOutcomeOverlay({
+        title: output.outcomeTitle,
+        message: output.outcomeMessage,
+      });
+      setSceneStage("outcome");
+    }
+  }
+
+  function handleOutcomeContinue() {
+    setOutcomeOverlay(null);
+    setSceneStage("action");
+  }
+
+  function handleLeaveExploredRoom() {
+    if (sceneStage !== "action" || choiceMode !== "room_action") return;
+    if (!roomExitCriteriaMet(roomPacing)) return;
+    if (currentRoom === "boss_room") return;
+
+    const pacingAfter: RoomPacingState = {
+      ...roomPacing,
+      interactionCount: roomPacing.interactionCount + 1,
+    };
+    setRoomPacing(pacingAfter);
+
+    const pid = activePlayer?.id ?? gameState.players[0]?.id ?? "";
+
+    if (currentRoom === "entrance_hall") {
+      const proc = processStoryEffects(
+        [
+          metaVillainEffects.entranceCleared,
+          {
+            type: "grant_reward",
+            markRoomComplete: "entrance_hall",
+            completionCard: {
+              title: "A Hollow Discovery",
+              message: "Nothing stirs here. Another wing calls to you.",
+              cta: "Leave Room",
+              next: "room_select",
+            },
+          },
+        ],
+        {
+          canExitRoom: true,
+          usedMetaOnceKeys: metaOnceKeysRef.current,
+        },
+      );
+      applyProcessedStoryOutcome(proc);
+      return;
+    }
+
+    if (currentRoom === "library") {
+      markRoomComplete("library");
+      grantRandomRewardThenShowResult(pid, roomCompletionCard("library"));
+      return;
+    }
+
+    if (currentRoom === "dining_room") {
+      markRoomComplete("dining_room");
+      grantRandomRewardThenShowResult(pid, roomCompletionCard("dining_room"));
+    }
+  }
+
+  function handleOpenBossBindingChoices() {
+    if (currentRoom !== "boss_room" || sceneStage !== "action") return;
+    if (roomPacing.interactionCount < 2) return;
+    setSceneStage("choice");
+  }
 
   function resolveAllEnemyTurns(stateAfterPlayers: LocalGameState): {
     nextState: LocalGameState;
@@ -696,12 +837,6 @@ export function GameRuntime({ initialGameState }: GameRuntimeProps) {
         setMetaNarration(combatMeta);
       }
 
-      if (canLeaveRoom) {
-        markRoomComplete(currentRoom);
-        startRewardStage(activePlayer.id, roomCompletionCard(currentRoom));
-      } else {
-        startRewardStage(activePlayer.id, COMBAT_WIN_MID_ROOM);
-      }
       pushNarration(
         `${activePlayer.name} ${
           outcome === "critical"
@@ -711,6 +846,15 @@ export function GameRuntime({ initialGameState }: GameRuntimeProps) {
               : "strikes"
         } ${target.name} for ${finalDamage}.`,
       );
+      if (canLeaveRoom) {
+        markRoomComplete(currentRoom);
+        grantRandomRewardThenShowResult(
+          activePlayer.id,
+          roomCompletionCard(currentRoom),
+        );
+      } else {
+        grantRandomRewardThenShowResult(activePlayer.id, COMBAT_WIN_MID_ROOM);
+      }
       return;
     }
 
@@ -725,125 +869,28 @@ export function GameRuntime({ initialGameState }: GameRuntimeProps) {
     pushNarration(`${activePlayer.name} hits for ${finalDamage}.`);
   }
 
-  function handleRewardSelect(reward: RewardOption) {
-    if (sceneStage !== "reward") return;
-
-    setGameState((prev) => {
-      const fallbackIndex = getFirstLivingPlayerIndex(prev) ?? 0;
-      const targetIndex = rewardTargetPlayerId
-        ? prev.players.findIndex((p) => p.id === rewardTargetPlayerId)
-        : fallbackIndex;
-      const idx = targetIndex >= 0 ? targetIndex : fallbackIndex;
-      const target = prev.players[idx];
-      if (!target) return prev;
-
-      const updated = reward.apply({
-        hp: target.hp,
-        maxHp: target.maxHp,
-        power: target.power,
-        guard: target.guard,
-        mind: target.mind,
-        skill: target.skill,
-      });
-
-      return {
-        ...prev,
-        players: prev.players.map((p, i) =>
-          i === idx
-            ? {
-                ...p,
-                hp: clampHp(Math.min(updated.hp, updated.maxHp)),
-                maxHp: updated.maxHp,
-                power: updated.power,
-                guard: updated.guard,
-                mind: updated.mind,
-                skill: updated.skill,
-              }
-            : p,
-        ),
-      };
-    });
-
-    pushNarration(rewardNarrationLabel(reward.id));
-    setRewardOptions([]);
-    setRewardTargetPlayerId(null);
-    setSceneStage("result");
-
-    const rewardMeta = applyStandaloneMetaEffects(
-      [metaVillainEffects.afterFirstReward],
-      {
-        canExitRoom: false,
-        usedMetaOnceKeys: metaOnceKeysRef.current,
-      },
-    );
-    if (rewardMeta) {
-      setMetaNarration(rewardMeta);
-    }
-  }
-
   function handleBeginExploration() {
     setChoiceMode("room_action");
-    setSceneStage("choice");
+    setOutcomeOverlay(null);
+    setSceneStage("action");
     if (currentRoom === "entrance_hall") {
       const intro = getStoryScene(hauntedHouseEntrance, entranceStorySceneId);
       if (intro?.type === "intro") {
         setEntranceStorySceneId(intro.nextSceneId);
         const hub = getStoryScene(hauntedHouseEntrance, intro.nextSceneId);
-        if (hub?.type === "choice" && hub.text) {
+        if (hub?.type === "action" && hub.text) {
           pushNarration(`${ROOM_LABELS.entrance_hall}: ${hub.text}`);
         } else {
-          pushNarration(`${ROOM_LABELS.entrance_hall}: choose your path.`);
+          pushNarration(`${ROOM_LABELS.entrance_hall}: choose an action.`);
         }
         return;
       }
     }
-    pushNarration(`${ROOM_LABELS[currentRoom]}: choose your path.`);
+    pushNarration(`${ROOM_LABELS[currentRoom]}: choose an action.`);
   }
 
   function handleRoomActionChoice(choiceId: string) {
     if (sceneStage !== "choice" || choiceMode !== "room_action") return;
-
-    if (currentRoom === "entrance_hall") {
-      handleEntranceStoryChoice(choiceId);
-      return;
-    }
-
-    const nextInteraction = roomPacing.interactionCount + 1;
-    setRoomPacing((p) => ({ ...p, interactionCount: p.interactionCount + 1 }));
-
-    const canExitNow = roomExitCriteriaMet({
-      interactionCount: nextInteraction,
-      combatTriggered: roomPacing.combatTriggered,
-      combatResolved: roomPacing.combatResolved,
-    });
-
-    if (currentRoom === "library") {
-      if (choiceId === "shelves") {
-        pushNarration("Dusty tomes crumble in your hands. The library falls quiet.");
-        if (canExitNow) {
-          markRoomComplete("library");
-          startRewardStage(
-            activePlayer?.id ?? gameState.players[0]?.id ?? "",
-            roomCompletionCard("library"),
-          );
-        } else {
-          setResultCard(EXPLORE_RESULT);
-          setSceneStage("result");
-        }
-        return;
-      }
-      if (choiceId === "nook") {
-        pushNarration("A hidden nook opens. Shelves tremble as a presence surges forward.");
-        beginRoomCombat("library");
-        return;
-      }
-      applyRiskPenaltyThenCombat(
-        "library",
-        2,
-        "A cursed page slashes your mind. You lose 2 HP.",
-      );
-      return;
-    }
 
     if (currentRoom === "boss_room") {
       if (choiceId === "seal") {
@@ -869,31 +916,6 @@ export function GameRuntime({ initialGameState }: GameRuntimeProps) {
       );
       return;
     }
-
-    if (choiceId === "table") {
-      pushNarration("You disturb the banquet. The room erupts into motion.");
-      beginRoomCombat("dining_room");
-      return;
-    }
-    if (choiceId === "cabinet") {
-      pushNarration("The cabinet holds only dust and silence.");
-      if (canExitNow) {
-        markRoomComplete("dining_room");
-        startRewardStage(
-          activePlayer?.id ?? gameState.players[0]?.id ?? "",
-          roomCompletionCard("dining_room"),
-        );
-      } else {
-        setResultCard(EXPLORE_RESULT);
-        setSceneStage("result");
-      }
-      return;
-    }
-    applyRiskPenaltyThenCombat(
-      "dining_room",
-      2,
-      "A silver bell rings and your ears split with pain. You lose 2 HP.",
-    );
   }
 
   function handleRoomSelectChoice(nextRoom: RoomId) {
@@ -923,7 +945,8 @@ export function GameRuntime({ initialGameState }: GameRuntimeProps) {
 
     if (next === "explore_more" || next === "choice") {
       setChoiceMode("room_action");
-      setSceneStage("choice");
+      setOutcomeOverlay(null);
+      setSceneStage("action");
       setEncounterStatus("active");
       if (currentRoom === "entrance_hall") {
         setEntranceStorySceneId("eh_hub");
@@ -946,6 +969,7 @@ export function GameRuntime({ initialGameState }: GameRuntimeProps) {
   function handlePlayAgain() {
     setCurrentRoom("entrance_hall");
     setChoiceMode("room_action");
+    setOutcomeOverlay(null);
     setSceneStage("intro");
     setEncounterStatus("active");
     setCompletedRooms([]);
@@ -960,8 +984,6 @@ export function GameRuntime({ initialGameState }: GameRuntimeProps) {
     setJournalToast(null);
     prevJournalUnlockCountRef.current = 0;
     setResultCard(null);
-    setRewardOptions([]);
-    setRewardTargetPlayerId(null);
     setGameState(initLocalState(initialGameState));
     setNarrationLog(() => {
       const intro = getStoryScene(
@@ -974,41 +996,27 @@ export function GameRuntime({ initialGameState }: GameRuntimeProps) {
 
   const showCombatLayer = sceneStage === "combat";
   const showIntroLayer = sceneStage === "intro";
-  const showChoiceLayer = sceneStage === "choice";
-  const showRewardLayer = sceneStage === "reward";
+  const showActionLayer =
+    sceneStage === "action" && choiceMode === "room_action";
+  const showOutcomeLayer =
+    sceneStage === "outcome" &&
+    choiceMode === "room_action" &&
+    outcomeOverlay !== null;
+  const showChoiceLayer =
+    sceneStage === "choice" &&
+    (choiceMode === "room_select" ||
+      (choiceMode === "room_action" && currentRoom === "boss_room"));
   const showResultLayer = sceneStage === "result" && !!resultCard;
   const mutedHud = !showCombatLayer;
 
-  const entranceStorySceneForChoices = getStoryScene(
-    hauntedHouseEntrance,
-    entranceStorySceneId,
-  );
-  const roomChoices =
-    currentRoom === "entrance_hall" &&
-    entranceStorySceneForChoices?.type === "choice"
-      ? entranceStorySceneForChoices.choices
-          .filter((c) => storyConditionsPass(c.conditions, storyFlags))
-          .map((c) => ({
-            id: c.id,
-            label: c.label,
-          }))
-      : currentRoom === "library"
-        ? [
-            { id: "shelves", label: "Study the crumbling shelves" },
-            { id: "nook", label: "Open the hidden reading nook" },
-            { id: "ledger", label: "Read the forbidden ledger" },
-          ]
-        : currentRoom === "dining_room"
-          ? [
-              { id: "table", label: "Inspect the banquet table" },
-              { id: "cabinet", label: "Check the side cabinet" },
-              { id: "bell", label: "Ring the silver bell" },
-            ]
-          : [
-              { id: "seal", label: "Break the binding seal" },
-              { id: "script", label: "Read the warding script" },
-              { id: "chain", label: "Touch the spirit chain" },
-            ];
+  const bossBindingChoices: { id: string; label: string }[] = [
+    { id: "seal", label: "Break the binding seal" },
+    { id: "script", label: "Read the warding script" },
+    { id: "chain", label: "Touch the spirit chain" },
+  ];
+
+  const canLeaveExploredRoom =
+    currentRoom !== "boss_room" && roomExitCriteriaMet(roomPacing);
 
   const wingCleared =
     completedRooms.includes("library") || completedRooms.includes("dining_room");
@@ -1084,6 +1092,14 @@ export function GameRuntime({ initialGameState }: GameRuntimeProps) {
               ? "—"
               : JSON.stringify(storyFlags, null, 0)}
           </pre>
+          <div className="mt-1 text-zinc-500">
+            room: i={roomPacing.interactionCount} combat=
+            {roomPacing.combatTriggered ? (roomPacing.combatResolved ? "done" : "on") : "no"}{" "}
+            S/I/L
+            {roomPacing.usedSearch ? "1" : "0"}
+            {roomPacing.usedInspect ? "1" : "0"}
+            {roomPacing.usedListen ? "1" : "0"}
+          </div>
         </div>
       ) : null}
       <div className="relative z-10 flex min-h-screen flex-1 flex-col pb-40">
@@ -1141,11 +1157,87 @@ export function GameRuntime({ initialGameState }: GameRuntimeProps) {
           </div>
         ) : null}
 
+        {showActionLayer ? (
+          <div className="absolute inset-x-0 bottom-24 z-40 flex justify-center px-4 md:bottom-28">
+            <div className="w-full max-w-2xl rounded-xl border border-violet-700/60 bg-zinc-950/85 p-4 shadow-xl backdrop-blur-sm">
+              <h3 className="text-center text-sm font-semibold uppercase tracking-wider text-violet-200">
+                Explore the room
+              </h3>
+              <p className="mt-2 text-center text-sm text-zinc-300">
+                {narrationLog[0] ?? "The house waits."}
+              </p>
+              <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                <button
+                  type="button"
+                  onClick={() => handleExplorationAction("search")}
+                  className="rounded-lg border border-violet-600/50 bg-zinc-900/80 px-3 py-3 text-center text-sm font-medium text-violet-100 hover:bg-zinc-800"
+                >
+                  Search
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleExplorationAction("inspect")}
+                  className="rounded-lg border border-violet-600/50 bg-zinc-900/80 px-3 py-3 text-center text-sm font-medium text-violet-100 hover:bg-zinc-800"
+                >
+                  Inspect
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleExplorationAction("listen")}
+                  className="rounded-lg border border-violet-600/50 bg-zinc-900/80 px-3 py-3 text-center text-sm font-medium text-violet-100 hover:bg-zinc-800"
+                >
+                  Listen
+                </button>
+              </div>
+              {currentRoom === "boss_room" && roomPacing.interactionCount >= 2 ? (
+                <button
+                  type="button"
+                  onClick={handleOpenBossBindingChoices}
+                  className="mt-3 w-full rounded-lg border border-amber-700/55 bg-amber-950/35 px-3 py-3 text-center text-sm font-medium text-amber-100 hover:bg-amber-950/50"
+                >
+                  Face the binding
+                </button>
+              ) : null}
+              {canLeaveExploredRoom ? (
+                <button
+                  type="button"
+                  onClick={handleLeaveExploredRoom}
+                  className="mt-3 w-full rounded-lg border border-zinc-500/45 bg-zinc-900/70 px-3 py-2.5 text-center text-sm text-zinc-200 hover:bg-zinc-800"
+                >
+                  Leave this area
+                </button>
+              ) : null}
+            </div>
+          </div>
+        ) : null}
+
+        {showOutcomeLayer && outcomeOverlay ? (
+          <div className="absolute inset-0 z-[45] flex items-center justify-center px-4">
+            <div className="w-full max-w-md rounded-xl border border-violet-700/60 bg-zinc-950/90 p-6 text-center shadow-xl backdrop-blur-sm">
+              <h3 className="text-lg font-semibold text-violet-100">
+                {outcomeOverlay.title}
+              </h3>
+              <p className="mt-3 text-sm leading-relaxed text-zinc-300">
+                {outcomeOverlay.message}
+              </p>
+              <button
+                type="button"
+                onClick={handleOutcomeContinue}
+                className="mt-5 rounded-md border border-violet-500/60 bg-violet-950/40 px-4 py-2 text-sm text-violet-100"
+              >
+                Continue
+              </button>
+            </div>
+          </div>
+        ) : null}
+
         {showChoiceLayer ? (
           <div className="absolute inset-x-0 bottom-24 z-40 flex justify-center px-4 md:bottom-28">
             <div className="w-full max-w-2xl rounded-xl border border-violet-700/60 bg-zinc-950/85 p-4 shadow-xl backdrop-blur-sm">
               <h3 className="text-center text-sm font-semibold uppercase tracking-wider text-violet-200">
-                {choiceMode === "room_select" ? "Choose Next Room" : "Choose Your Move"}
+                {choiceMode === "room_select"
+                  ? "Choose Next Room"
+                  : "A dangerous choice"}
               </h3>
               <p className="mt-2 text-center text-sm text-zinc-300">
                 {narrationLog[0] ?? "The house waits for your decision."}
@@ -1166,7 +1258,7 @@ export function GameRuntime({ initialGameState }: GameRuntimeProps) {
                 </div>
               ) : (
                 <div className="mt-3 grid gap-2 md:grid-cols-3">
-                  {roomChoices.map((choice) => (
+                  {bossBindingChoices.map((choice) => (
                     <button
                       key={choice.id}
                       type="button"
@@ -1178,29 +1270,6 @@ export function GameRuntime({ initialGameState }: GameRuntimeProps) {
                   ))}
                 </div>
               )}
-            </div>
-          </div>
-        ) : null}
-
-        {showRewardLayer ? (
-          <div className="absolute inset-0 z-40 flex items-center justify-center px-4">
-            <div className="w-full max-w-3xl rounded-xl border border-emerald-700/60 bg-zinc-950/85 p-5 shadow-xl backdrop-blur-sm">
-              <h3 className="text-center text-sm font-semibold uppercase tracking-wider text-emerald-200">
-                Choose Your Reward
-              </h3>
-              <div className="mt-3 grid gap-2 md:grid-cols-3">
-                {rewardOptions.map((reward) => (
-                  <button
-                    key={reward.id}
-                    type="button"
-                    onClick={() => handleRewardSelect(reward)}
-                    className="rounded-lg border border-emerald-600/50 bg-zinc-900/80 px-3 py-3 text-left text-sm text-zinc-100 hover:bg-zinc-800"
-                  >
-                    <div className="font-medium text-emerald-200">{reward.label}</div>
-                    <div className="mt-1 text-zinc-300">{reward.description}</div>
-                  </button>
-                ))}
-              </div>
             </div>
           </div>
         ) : null}

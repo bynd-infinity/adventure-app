@@ -70,6 +70,13 @@ export type StorySceneChoice = {
   choices: StoryChoice[];
 };
 
+/** Exploration hub: copy only; interactions use Search / Inspect / Listen at runtime. */
+export type StorySceneAction = {
+  id: string;
+  type: "action";
+  text: string;
+};
+
 export type StorySceneResult = {
   id: string;
   type: "result";
@@ -79,7 +86,11 @@ export type StorySceneResult = {
   resultNext: StoryResultNext;
 };
 
-export type StoryScene = StorySceneIntro | StorySceneChoice | StorySceneResult;
+export type StoryScene =
+  | StorySceneIntro
+  | StorySceneChoice
+  | StorySceneAction
+  | StorySceneResult;
 
 export type StoryBundle = {
   initialSceneId: string;

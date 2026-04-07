@@ -69,12 +69,9 @@ const REWARD_POOL: RewardOption[] = [
   },
 ];
 
-export function generateRewardOptions(count = 3): RewardOption[] {
-  const copy = [...REWARD_POOL];
-  for (let i = copy.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [copy[i], copy[j]] = [copy[j]!, copy[i]!];
-  }
-  return copy.slice(0, Math.max(1, Math.min(count, 3)));
+/** Uniform random pick from the full pool (combat / story reward grants). */
+export function pickRandomReward(): RewardOption {
+  const i = Math.floor(Math.random() * REWARD_POOL.length);
+  return REWARD_POOL[i]!;
 }
 
