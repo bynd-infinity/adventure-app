@@ -1,48 +1,12 @@
 import Link from "next/link";
-import { ActionBar } from "@/components/game/ActionBar";
-import { EnemyPanel } from "@/components/game/EnemyPanel";
-import { GameTopBar } from "@/components/game/GameTopBar";
-import { PartyPanel } from "@/components/game/PartyPanel";
-import { SceneStage } from "@/components/game/SceneStage";
+import { GameRuntime } from "@/components/game/GameRuntime";
 import { createInitialGameState } from "@/lib/game/createGameState";
 import { fetchPlayerRowsForSession } from "@/lib/lobby/players";
 import { fetchSessionById } from "@/lib/lobby/session";
-import type { GameState } from "@/types";
 
 type GamePageProps = {
   params: Promise<{ sessionId: string }>;
 };
-
-function GameShell({ gameState }: { gameState: GameState }) {
-  const activePlayer =
-    gameState.players.length > 0
-      ? gameState.players[
-          gameState.turnIndex % gameState.players.length
-        ]!
-      : null;
-
-  return (
-    <div className="relative flex min-h-screen flex-1 flex-col bg-zinc-950 bg-cover bg-center bg-no-repeat bg-[url('/backgrounds/entrance-hall.png')] text-zinc-100">
-      <div
-        className="pointer-events-none absolute inset-0 bg-black/40"
-        aria-hidden
-      />
-      <div className="relative z-10 flex min-h-screen flex-1 flex-col pb-40">
-        <GameTopBar scene={gameState.scene} />
-        <PartyPanel
-          players={gameState.players}
-          activePlayerId={activePlayer?.id ?? null}
-        />
-        <main className="flex flex-1 items-center justify-center">
-          <EnemyPanel enemies={gameState.enemies} />
-        </main>
-        <SceneStage scene={gameState.scene} />
-
-        <ActionBar />
-      </div>
-    </div>
-  );
-}
 
 export default async function GamePage({ params }: GamePageProps) {
   const { sessionId } = await params;
@@ -84,5 +48,5 @@ export default async function GamePage({ params }: GamePageProps) {
 
   const gameState = createInitialGameState(rows);
 
-  return <GameShell gameState={gameState} />;
+  return <GameRuntime initialGameState={gameState} />;
 }
