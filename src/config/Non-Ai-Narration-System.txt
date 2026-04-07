@@ -1,0 +1,17 @@
+NON-AI NARRATION SYSTEM
+Narration Style:
+- Short
+- Punchy
+- Slightly eerie
+- Occasionally funny
+
+Narration Sources:
+- Scene intro lines
+- Action result templates
+- Enemy reaction variation pools
+- Item find text
+- Event outcome text
+
+Rule:
+- All gameplay must remain fully playable without AI
+- AI narration, if added later, is a flavor layer only

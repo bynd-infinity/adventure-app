@@ -36,6 +36,21 @@ export async function createSession(
   throw new Error("Could not generate a unique lobby code.");
 }
 
+export async function fetchSessionById(
+  sessionId: string,
+  client: SupabaseClient = getSupabaseClient(),
+): Promise<Session | null> {
+  const { data, error } = await client
+    .from("sessions")
+    .select("*")
+    .eq("id", sessionId)
+    .maybeSingle();
+
+  if (error) throw new Error(error.message);
+  if (!data) return null;
+  return mapSessionRow(data as SessionRow);
+}
+
 export async function findSessionByCode(
   rawCode: string,
   client: SupabaseClient = getSupabaseClient(),

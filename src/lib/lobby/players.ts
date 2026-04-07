@@ -73,10 +73,10 @@ export async function joinSessionAsPlayer(
   return mapPlayerRow(data as PlayerRow);
 }
 
-export async function fetchPlayersForSession(
+export async function fetchPlayerRowsForSession(
   sessionId: string,
   client: SupabaseClient = getSupabaseClient(),
-): Promise<Player[]> {
+): Promise<PlayerRow[]> {
   const { data, error } = await client
     .from("players")
     .select("*")
@@ -84,7 +84,15 @@ export async function fetchPlayersForSession(
     .order("turn_order", { ascending: true });
 
   if (error) throw new Error(error.message);
-  return (data as PlayerRow[]).map(mapPlayerRow);
+  return (data as PlayerRow[]) ?? [];
+}
+
+export async function fetchPlayersForSession(
+  sessionId: string,
+  client: SupabaseClient = getSupabaseClient(),
+): Promise<Player[]> {
+  const rows = await fetchPlayerRowsForSession(sessionId, client);
+  return rows.map(mapPlayerRow);
 }
 
 export async function fetchPlayerById(

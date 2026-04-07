@@ -1,0 +1,26 @@
+CLASS CONTENT BANKS
+Blade:
+- Weapon pool: swords, axes, sabers, heavy melee
+- Armor pool: light/medium combat gear
+- Accessory pool: duel, crit, offense leaning
+
+Spark:
+- Focus pool: staves, wands, ritual tools
+- Armor pool: robes, cloaks, charmwear
+- Spell pool: starts with 2, can discover up to 1–2 more in a run
+- Max equipped spells in MVP: 3
+
+Shadow:
+- Weapon pool: daggers, trick blades, stealth tools
+- Armor pool: wraps, cloaks, evasive gear
+- Trick pool: stealth, poison, search/event advantage
+
+Guard:
+- Weapon pool: maces, hammers, pikes
+- Armor pool: heavy gear and shields
+- Accessory pool: protect, taunt, resist, objective utility
+
+Shared:
+- Potions
+- Utility tools
+- Haunted relics

@@ -1,0 +1,35 @@
+CHANCE & BALANCE MODEL
+Design Goal:
+- Outcomes should feel uncertain but fair
+- Players should feel lucky sometimes, not constantly
+- Runs should feel tense but winnable
+
+Target Outcome Feel:
+- ~70% normal success
+- ~20% strong success / bonus result
+- ~10% failure / bad outcome
+
+Status Proc Targets:
+- Poison ~25%
+- Fear ~20%
+- Stun ~15%
+- Buff proc ~30%
+
+Loot Drop Chance:
+- 70% reward
+- 30% no loot
+
+Loot Type Weights:
+- 50% consumable
+- 35% class gear
+- 15% rare/relic
+
+Rarity Weights:
+- 60% common
+- 25% rare
+- 12% epic
+- 3% cursed
+
+Stat Influence:
+- Stats should shift odds modestly, not break the game
+- Recommended starting rule: each stat point adds about +2% to relevant chance rolls

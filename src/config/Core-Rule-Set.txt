@@ -1,0 +1,47 @@
+CORE RULES SYSTEM
+Stats:
+- Power
+- Skill
+- Mind
+- Guard
+
+Player Resources:
+- HP only for MVP
+- No mana/stamina for MVP unless abilities explicitly consume charges
+
+Turn Structure:
+- Player phase, then enemy phase
+- Each player gets 1 Action per turn
+- Optional Bonus Move only if granted by class/item/event
+- Turn order loops until encounter ends
+
+Base Actions:
+- Attack
+- Defend
+- Ability
+- Item
+- Inspect
+- Custom Action
+
+Hit Resolution:
+- Roll 1d20 + relevant stat
+- 1–5 = fail
+- 6–12 = normal success
+- 13–18 = strong success
+- 19–20 = critical success
+
+Damage:
+- Base damage plus/minus small variance
+- Example: base 5 with variance ±2
+
+Status Effects (MVP):
+- Poison
+- Fear
+- Stun
+- Weak
+- Guarded
+
+Victory / Failure:
+- All enemies defeated = victory
+- All players reduced to 0 HP = defeat
+- Some events may have alternate fail states

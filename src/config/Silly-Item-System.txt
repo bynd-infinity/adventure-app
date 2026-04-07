@@ -1,0 +1,19 @@
+SILLY ITEM SYSTEM
+Purpose:
+- Add memorable chaos without turning the whole game into a joke
+
+Loot Tone Weights:
+- Normal: 80%
+- Weird: 15%
+- Absurd: 5%
+
+Rules:
+- Silly items must still be mechanically useful
+- Silly items may include downside, chaos, or unusual side effects
+- Silly items should create story moments players remember
+- Humor should be occasional, not constant
+
+Item Tone Field:
+- normal
+- weird
+- absurd

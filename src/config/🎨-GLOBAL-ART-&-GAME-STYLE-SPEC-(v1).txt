@@ -1,0 +1,187 @@
+🎨 GLOBAL ART & GAME STYLE SPEC (v1)
+🎯 Core Visual Identity
+Style: 8-bit / 16-bit hybrid pixel art
+Tone: dark fantasy + slightly playful
+Readability > realism
+Consistent across all environments (dungeon, haunted house, goblin raid)
+📐 Sprite Standards
+Resolution
+Characters: 64x64
+Enemies: 64x64
+Bosses: 96x96 or 128x128
+UI icons: 32x32
+Perspective (LOCK THIS)
+
+👉 Side view (2.5D)
+
+Characters face left/right
+Slight angle allowed but keep consistent
+NO mixing top-down
+Pixel Rules
+Hard pixel edges only
+No blur
+No anti-aliasing
+No gradients (or extremely minimal)
+Clean silhouette readability at small size
+Outline Style
+1px dark outline
+Slight inner shading allowed
+Keeps everything readable on dark backgrounds
+🎨 Color Palette (GLOBAL)
+
+Keep this tight to maintain consistency.
+
+Base Palette
+Dark Purple (primary UI / theme)
+Neon Green (accent / glow)
+Bone White
+Muted Red
+Steel Gray
+Shadow Black
+Rules
+Max ~20–24 colors total
+Reuse colors across ALL assets
+No random colors per asset
+
+👉 This is what prevents the “AI look”
+
+💡 Lighting Rules
+Light source: top-left
+Soft shading (2–3 tones max)
+No dramatic lighting differences between assets
+🧍 Character Design Rules (IMPORTANT)
+
+Characters must:
+
+Fit ALL environments (not tied to one theme)
+Feel slightly stylized, not hyper-realistic
+Have clear silhouettes
+🧙 Player Classes (v1)
+1. Blade
+Sword user
+Light armor
+Neutral fantasy (not knight-specific)
+2. Spark
+Magic user
+Staff or glowing hand
+Subtle glow effect (green/purple)
+3. Shadow
+Cloak, dagger
+Face partially hidden
+4. Guard
+Shield + heavy stance
+Bulkier silhouette
+Character Rules
+No environment-specific clothing (no “haunted house outfit”)
+Neutral fantasy so they work everywhere
+1 idle pose required (MVP)
+👹 Enemy Design Rules
+
+Enemies ARE environment-specific.
+
+Each environment gets:
+
+3–5 standard enemies
+1 boss
+🌍 Environment System
+
+Each “Adventure” has:
+
+unique enemies
+unique backgrounds
+unique tone
+
+But:
+👉 SAME UI
+👉 SAME player characters
+
+🏚️ FIRST ADVENTURE: HAUNTED HOUSE
+
+This is your MVP scenario.
+
+🎯 Theme
+spooky but slightly fun
+not horror — more “adventure spooky”
+readable, not too dark
+🎨 Environment Palette Additions
+Dusty browns
+Faded greens
+Pale blues (ghosts)
+Candlelight yellow
+🧱 Background Scenes (v1)
+
+You need 3–4:
+
+Entrance Hall
+broken chandelier
+staircase
+dim lighting
+Dining Room
+long table
+candles
+shadows
+Library
+bookshelves
+dark corners
+Final Room (Boss)
+ritual circle or haunted chamber
+👻 Enemy Set (Haunted House)
+Standard Enemies
+Ghost (floating, transparent)
+Possessed Armor
+Shadow Figure
+Cursed Doll (small, creepy)
+Boss
+The Bound Spirit
+larger ghost
+glowing core
+more detailed sprite
+🎮 Gameplay Structure (Haunted House)
+Scene Flow
+Intro (Entrance Hall)
+Exploration / Choice (Dining Room or Library)
+Combat Encounter
+Final Boss Room
+Ending
+🧠 AI Tone (Haunted House)
+
+Prompt style:
+
+slightly eerie
+descriptive but SHORT
+occasional humor
+
+Example tone:
+
+“The chandelier creaks as something unseen shifts above you…”
+
+NOT:
+
+long paragraphs or horror novels
+
+⚙️ Interaction Design
+
+Each scene should provide:
+
+2–4 clear choices
+optional “custom action”
+
+Example:
+
+You hear whispering from the hallway…
+
+1. Move toward the sound
+2. Search the room
+3. Stay together and wait
+4. Do something else
+🎲 Combat Feel
+fast
+punchy
+2–4 enemies max
+boss feels different (not just bigger HP)
+⚡ FINAL RULES (DO NOT BREAK THESE)
+No mixing art styles
+No adding random colors later
+No switching perspectives
+No long AI narration
+No over-complicating mechanics

@@ -1,0 +1,31 @@
+ROOM REWARD BIAS
+Entrance Hall:
+- intro loot
+- light consumables
+- low-risk events
+
+Library:
+- Spark-weighted rewards
+- cursed knowledge
+- relics
+- hidden information
+
+Dining Room:
+- mixed rewards
+- weird items
+- ambush/combat events
+
+Armory (if used later):
+- Blade/Guard weighted gear
+
+Nursery / Doll Room (if used later):
+- cursed relics
+- weird consumables
+- Shadow-weighted items
+
+Chapel / Ritual Room (if used later):
+- Spark/Guard weighted anti-spirit items
+
+Boss Room:
+- guaranteed meaningful reward on win
+- higher rare/epic chance

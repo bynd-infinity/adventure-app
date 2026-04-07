@@ -1,0 +1,43 @@
+MVP SCOPE LOCKS (UPDATED)
+
+Core Philosophy:
+- The system must support multiple adventures
+- Only ONE adventure (Haunted House) is built in MVP
+- All systems must be reusable for future adventures
+
+Included in MVP:
+- Haunted House adventure ONLY
+- 3–5 player sessions
+- 4 base classes (Blade, Spark, Shadow, Guard)
+- Turn-based combat and event system
+- Event-driven replayability engine
+- Class-filtered loot system
+- Chance-based outcomes
+- Silly/weird item layer
+- Non-AI narration system
+- Pixel UI and asset integration
+
+System Requirements (IMPORTANT):
+- Event engine must support multiple adventure pools
+- Loot system must support adventure-specific items
+- Enemy system must support different enemy sets per adventure
+- Scene system must support different environments
+
+Not Included in MVP:
+- Additional adventures (Dungeon, Goblin Raid, etc.)
+- Adventure selection UI
+- Cross-adventure progression
+- Custom adventure builder
+- Campaign mode
+
+Post-MVP Expansion Direction:
+- Add new adventures using the same system:
+  - Dungeon Crawl
+  - Goblin Raid
+  - Ruined City
+  - Crypt / Catacombs
+- Each adventure introduces:
+  - new enemy pools
+  - new event pools
+  - new relics
+  - new tone variations

@@ -1,0 +1,38 @@
+ITEM DATA MODEL
+Fields:
+- id
+- name
+- class_type
+- category
+- rarity
+- tone
+- stat_mods
+- effect_text
+- tags
+
+class_type:
+- blade
+- spark
+- shadow
+- guard
+- shared
+
+category:
+- weapon
+- armor
+- shield
+- accessory
+- consumable
+- spell
+- relic
+
+rarity:
+- common
+- rare
+- epic
+- cursed
+
+tone:
+- normal
+- weird
+- absurd

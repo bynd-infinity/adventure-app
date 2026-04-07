@@ -1,0 +1,47 @@
+EVENT ENGINE SYSTEM
+Adventure Structure:
+- Sessions are built from weighted random events, not one fixed script
+- Haunted House uses event pools tied to room types and progression stage
+
+Event Types:
+- Exploration
+- Combat
+- Choice
+- Modifier
+- Narrative
+- Boss
+
+Progression Weighting:
+Early Game:
+- 70% easy
+- 25% medium
+- 5% hard
+
+Mid Game:
+- 40% easy
+- 40% medium
+- 20% hard
+
+Late Game:
+- 20% easy
+- 50% medium
+- 30% hard
+
+Room Bias:
+- Library favors Spark items, hidden lore, cursed knowledge, ghostly events
+- Dining Room favors social/ambush/weird object events
+- Entrance Hall favors introductory exploration and trap events
+- Boss Room always pulls from boss event pool
+
+Event Data Shape:
+- id
+- type
+- difficulty
+- room_tags
+- title
+- description
+- choices
+- success_rules
+- failure_rules
+- rewards
+- modifiers_applied

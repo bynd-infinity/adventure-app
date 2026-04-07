@@ -15,3 +15,20 @@ export type Session = {
   currentScene: string;
   turnIndex: number;
 };
+
+/** Phase 3 — Project-Outline.txt */
+export type GamePhase = "player" | "enemy";
+
+export type Enemy = {
+  id: string;
+  name: string;
+  hp: number;
+};
+
+export type GameState = {
+  scene: string;
+  players: Player[];
+  enemies: Enemy[];
+  turnIndex: number;
+  phase: GamePhase;
+};

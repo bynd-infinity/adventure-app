@@ -1,0 +1,27 @@
+LOOT SYSTEM
+Loot Buckets:
+- Class Gear
+- Shared Consumables
+- Adventure Relics
+
+Equip Slots:
+- 1 Weapon
+- 1 Armor
+- 1 Accessory
+- 2 Consumable Slots
+
+Reward Rule:
+- Loot generation only pulls from classes currently in the party
+- Shared consumables can appear for any party
+- Haunted relics are class-neutral or lightly class-biased
+
+Loot Frequency:
+- Players should gain 1–3 meaningful upgrades per run
+- No loot flooding
+- Rewards should feel significant
+
+Loot Sources:
+- Search events
+- Combat rewards
+- Room rewards
+- Boss rewards

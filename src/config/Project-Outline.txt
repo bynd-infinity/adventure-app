@@ -1,0 +1,218 @@
+🧩 PHASE 1 — FOUNDATION (APP SETUP)
+✅ 1. Create project
+Next.js app (App Router)
+Tailwind installed
+Dark theme base
+✅ 2. Basic routing
+/ → landing (temporary)
+/lobby/[code]
+/game/[sessionId]
+✅ 3. Database (Supabase)
+
+Create tables:
+
+sessions
+id
+code
+status (lobby / active / finished)
+current_scene
+turn_index
+players
+id
+session_id
+name
+class
+hp
+is_host
+turn_order
+🎮 PHASE 2 — LOBBY SYSTEM
+✅ 4. Create lobby
+generate session code
+host joins automatically
+✅ 5. Join lobby
+enter code
+add player to session
+✅ 6. Lobby UI
+show players list
+class selection (Blade / Spark / Shadow / Guard)
+ready indicator
+host “Start Game” button
+
+👉 STOP when:
+
+2+ players can join and start a game
+🧠 PHASE 3 — GAME STATE ENGINE
+✅ 7. Define game state structure
+
+Create object:
+
+GameState {
+  scene: string
+  players: Player[]
+  enemies: Enemy[]
+  turnIndex: number
+  phase: "player" | "enemy"
+}
+✅ 8. Turn system
+determine player order
+cycle through players
+then enemies
+loop
+✅ 9. Basic actions
+
+Implement:
+
+attack
+defend
+ability (placeholder)
+custom action (text only)
+
+👉 Hardcode logic for now
+
+🎬 PHASE 4 — UI IMPLEMENTATION
+✅ 10. Build layout components
+TopBar
+PartyPanel
+EnemyPanel
+SceneStage
+NarrationLog
+ActionBar
+ContextPanel
+✅ 11. Render mock game state
+hardcoded players
+hardcoded enemies
+test layout visually
+
+👉 STOP when:
+
+screen looks like a game, not a dashboard
+✅ 12. Hook UI to real game state
+display player HP
+display enemy HP
+highlight active player
+update on actions
+🎨 PHASE 5 — ASSETS INTEGRATION
+✅ 13. Import assets
+
+From your generated set:
+
+characters
+enemies
+backgrounds
+✅ 14. Map assets
+class → sprite
+enemy → sprite
+scene → background
+✅ 15. Display in SceneStage
+players on left
+enemies on right
+background behind
+
+👉 STOP when:
+
+it visually resembles a playable RPG
+🎲 PHASE 6 — GAMEPLAY LOOP
+✅ 16. Implement attack logic
+roll (random 1–20)
+apply damage
+update HP
+✅ 17. Enemy turn logic
+simple AI:
+pick random player
+attack
+✅ 18. Win / lose conditions
+all enemies dead → win
+all players dead → lose
+🏚️ PHASE 7 — HAUNTED HOUSE FLOW
+✅ 19. Scene sequence
+
+Hardcode:
+
+Entrance Hall (intro)
+Library OR Dining Room (choice)
+Combat encounter
+Boss room
+✅ 20. Scene transitions
+update background
+spawn enemies
+update narration
+🤖 PHASE 8 — AI INTEGRATION (LIGHT)
+✅ 21. Add AI endpoint
+
+Used for:
+
+narration only
+✅ 22. AI prompt structure
+
+Input:
+
+scene
+action result
+short context
+
+Output:
+
+1–2 sentence narration
+✅ 23. Replace static narration
+plug AI into NarrationLog
+
+👉 DO NOT:
+
+send full game history
+let AI control logic
+🎮 PHASE 9 — POLISH (MINIMUM)
+✅ 24. Dice roll feedback
+show roll result visually
+✅ 25. Damage feedback
+simple number popups
+✅ 26. Turn indicator
+clear whose turn it is
+🏁 PHASE 10 — PLAYTEST READY
+✅ 27. Full session test
+3+ players
+complete haunted house run
+✅ 28. Fix ONLY:
+bugs
+confusing UI
+pacing issues
+🚫 DO NOT DO (YET)
+no inventory system
+no leveling system
+no animations beyond simple effects
+no multiplayer chat system
+no custom adventures
+no saving/loading
+🎯 DEFINITION OF DONE (MVP)
+
+You are DONE when:
+
+players can join a lobby
+start a session
+play through haunted house
+take turns
+fight enemies
+see narration
+reach an ending
+
+👉 even if it’s ugly
+👉 even if it’s simple
+
+⚡ What happens after this
+
+ONLY after finishing this list:
+
+then expand
+then refine
+then monetize
+🧠 Final note
+
+This checklist is your guardrail.
+
+Every time you feel like:
+
+“we should add…”
+
+👉 check this list
+
+If it’s not on here:
+don’t do it yet
