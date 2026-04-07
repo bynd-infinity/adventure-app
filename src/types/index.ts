@@ -22,10 +22,18 @@ export type Session = {
 /** Phase 3 — Project-Outline.txt */
 export type GamePhase = "player" | "enemy";
 
+export type EnemyBehavior = "aggressive" | "fragile" | "defensive" | "boss";
+
 export type Enemy = {
   id: string;
   name: string;
   hp: number;
+  maxHp: number;
+  behavior: EnemyBehavior;
+  /** Used when this enemy resolves an attack. */
+  baseDamage: number;
+  templateId: string;
+  roleLabel?: string;
 };
 
 export type GameState = {

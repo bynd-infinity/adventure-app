@@ -1,7 +1,11 @@
-import type { Player } from "@/types";
-
 type PartyPanelProps = {
-  players: Player[];
+  players: Array<{
+    id: string;
+    name: string;
+    class: string;
+    hp: number;
+    maxHp: number;
+  }>;
   activePlayerId: string | null;
 };
 
@@ -30,7 +34,7 @@ export function PartyPanel({ players, activePlayerId }: PartyPanelProps) {
                 {p.name}
               </div>
               <div className="text-[11px] text-zinc-400">
-                {p.class || "—"} · HP {p.hp}
+                {p.class || "—"} · HP {p.hp}/{p.maxHp}
               </div>
             </li>
           );

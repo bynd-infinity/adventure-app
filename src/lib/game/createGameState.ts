@@ -13,9 +13,7 @@ export function createInitialGameState(rows: PlayerRow[]): GameState {
   return {
     scene: "entrance_hall",
     players,
-    enemies: [
-      { id: "enemy-1", name: "Restless Spirit", hp: 12 },
-    ],
+    enemies: [],
     turnIndex: 0,
     phase: "player",
   };

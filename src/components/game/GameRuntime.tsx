@@ -2,7 +2,14 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import type { Enemy, GameState } from "@/types";
+import type { Enemy, GameState, Player } from "@/types";
+import {
+  applyIncomingDamageToEnemy,
+  enemyAttackRollModifier,
+  generateEncounter,
+  pickEnemyTargetPlayerIndex,
+} from "@/lib/game/enemies";
+import { generateRewardOptions, type RewardOption } from "@/lib/game/rewards";
 import { ActionBar } from "./ActionBar";
 import { EnemyPanel } from "./EnemyPanel";
 import { GameTopBar } from "./GameTopBar";
@@ -13,8 +20,24 @@ type GameRuntimeProps = {
   initialGameState: GameState;
 };
 
+type PlayerGameState = Player & {
+  maxHp: number;
+  power: number;
+  guard: number;
+  mind: number;
+  skill: number;
+};
+
+type LocalGameState = {
+  scene: RoomId;
+  players: PlayerGameState[];
+  enemies: Enemy[];
+  turnIndex: number;
+  phase: "player" | "enemy";
+};
+
 type EncounterStatus = "active" | "victory" | "defeat";
-type SceneStageMode = "intro" | "choice" | "combat" | "result";
+type SceneStageMode = "intro" | "choice" | "combat" | "reward" | "result";
 type ResultNext = "choice" | "room_select" | "stay" | "run_complete";
 type ChoiceMode = "room_action" | "room_select";
 type RoomId = "entrance_hall" | "library" | "dining_room" | "boss_room";
@@ -50,12 +73,22 @@ const ROOM_INTRO: Record<RoomId, string> = {
   boss_room: "At the heart of the house, chains rattle around an ancient altar.",
 };
 
-const ROOM_ENEMY: Record<RoomId, Enemy> = {
-  entrance_hall: { id: "enemy-1", name: "Restless Spirit", hp: 12 },
-  library: { id: "enemy-1", name: "Whispering Archivist", hp: 13 },
-  dining_room: { id: "enemy-1", name: "Ravenous Butler", hp: 14 },
-  boss_room: { id: "boss-1", name: "Bound Spirit", hp: 24 },
-};
+function initLocalState(initial: GameState): LocalGameState {
+  return {
+    scene: "entrance_hall",
+    players: initial.players.map((p) => ({
+      ...p,
+      maxHp: p.hp,
+      power: 1,
+      guard: 1,
+      mind: 1,
+      skill: 1,
+    })),
+    enemies: initial.enemies,
+    turnIndex: initial.turnIndex,
+    phase: initial.phase,
+  };
+}
 
 function rollDie(sides: number): number {
   return Math.floor(Math.random() * sides) + 1;
@@ -65,31 +98,36 @@ function clampHp(hp: number): number {
   return Math.max(0, hp);
 }
 
-function getLivingPlayers(state: GameState) {
+function getLivingPlayers(state: LocalGameState) {
   return state.players.filter((p) => p.hp > 0);
 }
 
-function getLivingEnemies(state: GameState) {
+function getLivingEnemies(state: LocalGameState) {
   return state.enemies.filter((e) => e.hp > 0);
 }
 
-function getFirstLivingPlayerIndex(state: GameState): number | null {
+function getFirstLivingPlayerIndex(state: LocalGameState): number | null {
   const idx = state.players.findIndex((p) => p.hp > 0);
   return idx >= 0 ? idx : null;
 }
 
-function getFirstLivingEnemy(state: GameState) {
+function getFirstLivingEnemy(state: LocalGameState) {
   return state.enemies.find((e) => e.hp > 0) ?? null;
 }
 
-function getNextLivingPlayerIndex(state: GameState, fromIndex: number): number | null {
+function getNextLivingPlayerIndex(state: LocalGameState, fromIndex: number): number | null {
   for (let i = fromIndex + 1; i < state.players.length; i++) {
     if ((state.players[i]?.hp ?? 0) > 0) return i;
   }
   return null;
 }
 
-function resolveAttackDamage(roll: number, critBonus: number, strongBonus: number): {
+function resolveAttackDamage(
+  roll: number,
+  critBonus: number,
+  strongBonus: number,
+  baseDamage: number = BASE_DAMAGE,
+): {
   damage: number;
   outcome: "miss" | "hit" | "strong" | "critical";
 } {
@@ -97,34 +135,47 @@ function resolveAttackDamage(roll: number, critBonus: number, strongBonus: numbe
     return {
       outcome: "critical",
       damage:
-        BASE_DAMAGE + rollDie(DAMAGE_VARIANCE * 2 + 1) - DAMAGE_VARIANCE + critBonus,
+        baseDamage + rollDie(DAMAGE_VARIANCE * 2 + 1) - DAMAGE_VARIANCE + critBonus,
     };
   }
   if (roll >= 13) {
     return {
       outcome: "strong",
       damage:
-        BASE_DAMAGE + rollDie(DAMAGE_VARIANCE * 2 + 1) - DAMAGE_VARIANCE + strongBonus,
+        baseDamage + rollDie(DAMAGE_VARIANCE * 2 + 1) - DAMAGE_VARIANCE + strongBonus,
     };
   }
   if (roll >= 6) {
     return {
       outcome: "hit",
-      damage: BASE_DAMAGE + rollDie(DAMAGE_VARIANCE * 2 + 1) - DAMAGE_VARIANCE,
+      damage: baseDamage + rollDie(DAMAGE_VARIANCE * 2 + 1) - DAMAGE_VARIANCE,
     };
   }
   return { outcome: "miss", damage: 0 };
 }
 
+function rewardNarrationLabel(rewardId: string): string {
+  if (rewardId === "heal_small") return "Your wounds close.";
+  if (rewardId === "hp_up") return "Vital force settles in your bones.";
+  if (rewardId === "power_up") return "You feel stronger.";
+  if (rewardId === "guard_up") return "Your body hardens.";
+  if (rewardId === "mind_up") return "Your thoughts sharpen.";
+  return "Your movements grow faster.";
+}
+
 export function GameRuntime({ initialGameState }: GameRuntimeProps) {
   const router = useRouter();
-  const [gameState, setGameState] = useState<GameState>(initialGameState);
+  const [gameState, setGameState] = useState<LocalGameState>(() =>
+    initLocalState(initialGameState),
+  );
   const [encounterStatus, setEncounterStatus] = useState<EncounterStatus>("active");
   const [sceneStage, setSceneStage] = useState<SceneStageMode>("intro");
   const [choiceMode, setChoiceMode] = useState<ChoiceMode>("room_action");
   const [currentRoom, setCurrentRoom] = useState<RoomId>("entrance_hall");
   const [completedRooms, setCompletedRooms] = useState<RoomId[]>([]);
   const [resultCard, setResultCard] = useState<ResultCard | null>(null);
+  const [rewardOptions, setRewardOptions] = useState<RewardOption[]>([]);
+  const [rewardTargetPlayerId, setRewardTargetPlayerId] = useState<string | null>(null);
   const [narrationLog, setNarrationLog] = useState<string[]>([
     ROOM_INTRO.entrance_hall,
   ]);
@@ -164,12 +215,21 @@ export function GameRuntime({ initialGameState }: GameRuntimeProps) {
     };
   }
 
+  function startRewardStage(targetPlayerId: string, nextCard: ResultCard) {
+    setRewardTargetPlayerId(targetPlayerId);
+    setRewardOptions(generateRewardOptions(3));
+    setResultCard(nextCard);
+    setSceneStage("reward");
+  }
+
   function enterRoom(room: RoomId) {
     setCurrentRoom(room);
     setChoiceMode("room_action");
     setSceneStage("intro");
     setEncounterStatus("active");
     setResultCard(null);
+    setRewardOptions([]);
+    setRewardTargetPlayerId(null);
     setGameState((prev) => ({
       ...prev,
       scene: room,
@@ -181,13 +241,13 @@ export function GameRuntime({ initialGameState }: GameRuntimeProps) {
   }
 
   function beginRoomCombat(room: RoomId) {
-    const enemy = ROOM_ENEMY[room];
+    const enemies = generateEncounter(room);
     setSceneStage("combat");
     setEncounterStatus("active");
     setGameState((prev) => ({
       ...prev,
       scene: room,
-      enemies: [{ ...enemy }],
+      enemies,
       phase: "player",
       turnIndex: getFirstLivingPlayerIndex(prev) ?? 0,
     }));
@@ -200,54 +260,73 @@ export function GameRuntime({ initialGameState }: GameRuntimeProps) {
   const activePlayer =
     activePlayerIndex === null ? null : gameState.players[activePlayerIndex];
 
-  function resolveEnemyTurn(stateAfterPlayers: GameState): {
-    nextState: GameState;
-    enemyNarration: string;
+  function resolveAllEnemyTurns(stateAfterPlayers: LocalGameState): {
+    nextState: LocalGameState;
+    enemyNarrations: string[];
   } {
-    const enemy = getFirstLivingEnemy(stateAfterPlayers);
-    if (!enemy) {
+    const enemyOrder = getLivingEnemies(stateAfterPlayers);
+    if (enemyOrder.length === 0) {
       return {
         nextState: { ...stateAfterPlayers, phase: "player" },
-        enemyNarration: "Silence. No enemies remain.",
+        enemyNarrations: ["Silence. No enemies remain."],
       };
     }
 
-    const targetIndex = getFirstLivingPlayerIndex(stateAfterPlayers);
-    if (targetIndex === null) {
-      return {
-        nextState: { ...stateAfterPlayers, phase: "player" },
-        enemyNarration: `${enemy.name} lingers in the dark. No one is left standing.`,
-      };
-    }
+    let current = stateAfterPlayers;
+    const enemyNarrations: string[] = [];
 
-    const target = stateAfterPlayers.players[targetIndex]!;
-    const roll = rollDie(20);
-    const { damage, outcome } = resolveAttackDamage(roll, 2, 0);
+    for (const enemyRef of enemyOrder) {
+      if (getLivingPlayers(current).length === 0) break;
 
-    const nextHp = clampHp(target.hp - damage);
-    const nextPlayers = stateAfterPlayers.players.map((p, idx) =>
-      idx === targetIndex ? { ...p, hp: nextHp } : p,
-    );
+      const enemy = current.enemies.find((e) => e.id === enemyRef.id && e.hp > 0);
+      if (!enemy) continue;
 
-    const firstLivingAfterEnemy = nextPlayers.findIndex((p) => p.hp > 0);
+      const targetIndex = pickEnemyTargetPlayerIndex(current.players, enemy.behavior);
+      if (targetIndex === null) {
+        enemyNarrations.push(`${enemy.name} finds no living target.`);
+        break;
+      }
 
-    const outcomeText =
-      outcome === "miss"
-        ? "misses"
-        : outcome === "critical"
-          ? `lands a brutal strike for ${damage}`
-          : `hits for ${damage}`;
+      const target = current.players[targetIndex]!;
+      const roll = rollDie(20) + enemyAttackRollModifier(enemy.behavior);
+      const { damage, outcome } = resolveAttackDamage(roll, 2, 0, enemy.baseDamage);
+      const reduced = Math.max(0, damage - target.guard);
+      const nextHp = clampHp(target.hp - reduced);
+      const nextPlayers = current.players.map((p, idx) =>
+        idx === targetIndex ? { ...p, hp: nextHp } : p,
+      );
 
-    const defeatedText = nextHp === 0 ? ` ${target.name} collapses.` : "";
+      const firstLivingAfter = nextPlayers.findIndex((p) => p.hp > 0);
 
-    return {
-      nextState: {
-        ...stateAfterPlayers,
+      const outcomeText =
+        outcome === "miss"
+          ? "misses"
+          : outcome === "critical"
+            ? `lands a brutal strike for ${reduced}`
+            : `hits for ${reduced}`;
+
+      const defeatedText = nextHp === 0 ? ` ${target.name} collapses.` : "";
+
+      enemyNarrations.push(
+        `${enemy.name} rolls ${roll} and ${outcomeText} ${target.name}.${defeatedText}`,
+      );
+
+      current = {
+        ...current,
         players: nextPlayers,
         phase: "player",
-        turnIndex: firstLivingAfterEnemy === -1 ? 0 : firstLivingAfterEnemy,
+        turnIndex: firstLivingAfter === -1 ? 0 : firstLivingAfter,
+      };
+    }
+
+    const aliveIdx = getFirstLivingPlayerIndex(current);
+    return {
+      nextState: {
+        ...current,
+        phase: "player",
+        turnIndex: aliveIdx === null ? 0 : aliveIdx,
       },
-      enemyNarration: `${enemy.name} rolls ${roll} and ${outcomeText} ${target.name}.${defeatedText}`,
+      enemyNarrations,
     };
   }
 
@@ -296,22 +375,23 @@ export function GameRuntime({ initialGameState }: GameRuntimeProps) {
     }
 
     // Rule source: Core-Rule-Set -> "Roll 1d20 + relevant stat".
-    // Stats are not modeled yet in MVP data, so the relevant stat bonus is 0.
-    const relevantStat = 0;
     const roll = rollDie(20);
-    const total = roll + relevantStat;
+    const total = roll + activePlayer.power;
     const { damage, outcome } = resolveAttackDamage(total, 4, 2);
+    const rawHit = Math.max(0, damage + activePlayer.power - 1);
+    const finalDamage = applyIncomingDamageToEnemy(target, rawHit);
 
-    const nextEnemyHp = target.hp - damage;
-    const willDefeatEnemy = nextEnemyHp <= 0;
+    const nextEnemyHp = target.hp - finalDamage;
+    const encounterCleared =
+      nextEnemyHp <= 0 && getLivingEnemies(gameState).length === 1;
     const nextPlayerIndex = getNextLivingPlayerIndex(gameState, activePlayerIndex ?? 0);
-    const enemyWillAct = nextPlayerIndex === null && !willDefeatEnemy;
+    const enemyWillAct = nextPlayerIndex === null && !encounterCleared;
 
     setGameState((prev) => {
       const currentEnemy = getFirstLivingEnemy(prev);
       if (!currentEnemy) return prev;
 
-      const nextHp = clampHp(currentEnemy.hp - damage);
+      const nextHp = clampHp(currentEnemy.hp - finalDamage);
       const nextEnemies =
         nextHp <= 0
           ? prev.enemies.filter((e) => e.id !== currentEnemy.id)
@@ -319,7 +399,7 @@ export function GameRuntime({ initialGameState }: GameRuntimeProps) {
               e.id === currentEnemy.id ? { ...e, hp: nextHp } : e,
             );
 
-      const afterPlayerAttack: GameState = {
+      const afterPlayerAttack: LocalGameState = {
         ...prev,
         enemies: nextEnemies,
         turnIndex: nextPlayerIndex ?? prev.turnIndex,
@@ -327,8 +407,10 @@ export function GameRuntime({ initialGameState }: GameRuntimeProps) {
       };
 
       if (afterPlayerAttack.phase === "enemy") {
-        const enemyTurn = resolveEnemyTurn(afterPlayerAttack);
-        pushNarration(enemyTurn.enemyNarration);
+        const enemyTurn = resolveAllEnemyTurns(afterPlayerAttack);
+        for (const line of enemyTurn.enemyNarrations) {
+          pushNarration(line);
+        }
         if (getLivingPlayers(enemyTurn.nextState).length === 0) {
           setEncounterStatus("defeat");
           setResultCard({
@@ -352,11 +434,10 @@ export function GameRuntime({ initialGameState }: GameRuntimeProps) {
       return;
     }
 
-    if (willDefeatEnemy) {
+    if (encounterCleared) {
       setEncounterStatus("victory");
       markRoomComplete(currentRoom);
-      setResultCard(roomCompletionCard(currentRoom));
-      setSceneStage("result");
+      startRewardStage(activePlayer.id, roomCompletionCard(currentRoom));
       pushNarration(
         `${activePlayer.name} ${
           outcome === "critical"
@@ -364,20 +445,65 @@ export function GameRuntime({ initialGameState }: GameRuntimeProps) {
             : outcome === "strong"
               ? "lands a strong hit on"
               : "strikes"
-        } ${target.name} for ${damage}.`,
+        } ${target.name} for ${finalDamage}.`,
       );
       return;
     }
 
     if (outcome === "critical") {
-      pushNarration(`${activePlayer.name} lands a critical hit for ${damage}.`);
+      pushNarration(`${activePlayer.name} lands a critical hit for ${finalDamage}.`);
       return;
     }
     if (outcome === "strong") {
-      pushNarration(`${activePlayer.name} lands a strong hit for ${damage}.`);
+      pushNarration(`${activePlayer.name} lands a strong hit for ${finalDamage}.`);
       return;
     }
-    pushNarration(`${activePlayer.name} hits for ${damage}.`);
+    pushNarration(`${activePlayer.name} hits for ${finalDamage}.`);
+  }
+
+  function handleRewardSelect(reward: RewardOption) {
+    if (sceneStage !== "reward") return;
+
+    setGameState((prev) => {
+      const fallbackIndex = getFirstLivingPlayerIndex(prev) ?? 0;
+      const targetIndex = rewardTargetPlayerId
+        ? prev.players.findIndex((p) => p.id === rewardTargetPlayerId)
+        : fallbackIndex;
+      const idx = targetIndex >= 0 ? targetIndex : fallbackIndex;
+      const target = prev.players[idx];
+      if (!target) return prev;
+
+      const updated = reward.apply({
+        hp: target.hp,
+        maxHp: target.maxHp,
+        power: target.power,
+        guard: target.guard,
+        mind: target.mind,
+        skill: target.skill,
+      });
+
+      return {
+        ...prev,
+        players: prev.players.map((p, i) =>
+          i === idx
+            ? {
+                ...p,
+                hp: clampHp(Math.min(updated.hp, updated.maxHp)),
+                maxHp: updated.maxHp,
+                power: updated.power,
+                guard: updated.guard,
+                mind: updated.mind,
+                skill: updated.skill,
+              }
+            : p,
+        ),
+      };
+    });
+
+    pushNarration(rewardNarrationLabel(reward.id));
+    setRewardOptions([]);
+    setRewardTargetPlayerId(null);
+    setSceneStage("result");
   }
 
   function handleBeginExploration() {
@@ -391,20 +517,22 @@ export function GameRuntime({ initialGameState }: GameRuntimeProps) {
 
     if (currentRoom === "entrance_hall") {
       if (choiceId === "staircase") {
-        pushNarration("You step toward the staircase. A Restless Spirit emerges.");
+        pushNarration("You step toward the staircase. Something cold manifests ahead.");
         beginRoomCombat("entrance_hall");
         return;
       }
       if (choiceId === "doorway") {
         pushNarration("You search the doorway and find only cold silence.");
         markRoomComplete("entrance_hall");
-        setResultCard({
-          title: "A Hollow Discovery",
-          message: "Nothing stirs here. Another wing calls to you.",
-          cta: "Choose Next Room",
-          next: "room_select",
-        });
-        setSceneStage("result");
+        startRewardStage(
+          activePlayer?.id ?? gameState.players[0]?.id ?? "",
+          {
+            title: "A Hollow Discovery",
+            message: "Nothing stirs here. Another wing calls to you.",
+            cta: "Choose Next Room",
+            next: "room_select",
+          },
+        );
         return;
       }
       applyRiskPenaltyThenCombat(
@@ -419,12 +547,11 @@ export function GameRuntime({ initialGameState }: GameRuntimeProps) {
       if (choiceId === "shelves") {
         pushNarration("Dusty tomes crumble in your hands. The library falls quiet.");
         markRoomComplete("library");
-        setResultCard(roomCompletionCard("library"));
-        setSceneStage("result");
+        startRewardStage(activePlayer?.id ?? gameState.players[0]?.id ?? "", roomCompletionCard("library"));
         return;
       }
       if (choiceId === "nook") {
-        pushNarration("A hidden nook opens. A Whispering Archivist surges forward.");
+        pushNarration("A hidden nook opens. Shelves tremble as a presence surges forward.");
         beginRoomCombat("library");
         return;
       }
@@ -462,15 +589,14 @@ export function GameRuntime({ initialGameState }: GameRuntimeProps) {
     }
 
     if (choiceId === "table") {
-      pushNarration("You disturb the banquet. The Ravenous Butler lunges.");
+      pushNarration("You disturb the banquet. The room erupts into motion.");
       beginRoomCombat("dining_room");
       return;
     }
     if (choiceId === "cabinet") {
       pushNarration("The cabinet holds only dust and silence.");
       markRoomComplete("dining_room");
-      setResultCard(roomCompletionCard("dining_room"));
-      setSceneStage("result");
+      startRewardStage(activePlayer?.id ?? gameState.players[0]?.id ?? "", roomCompletionCard("dining_room"));
       return;
     }
     applyRiskPenaltyThenCombat(
@@ -515,13 +641,16 @@ export function GameRuntime({ initialGameState }: GameRuntimeProps) {
     setEncounterStatus("active");
     setCompletedRooms([]);
     setResultCard(null);
-    setGameState(initialGameState);
+    setRewardOptions([]);
+    setRewardTargetPlayerId(null);
+    setGameState(initLocalState(initialGameState));
     setNarrationLog([ROOM_INTRO.entrance_hall]);
   }
 
   const showCombatLayer = sceneStage === "combat";
   const showIntroLayer = sceneStage === "intro";
   const showChoiceLayer = sceneStage === "choice";
+  const showRewardLayer = sceneStage === "reward";
   const showResultLayer = sceneStage === "result" && !!resultCard;
   const mutedHud = !showCombatLayer;
 
@@ -538,17 +667,17 @@ export function GameRuntime({ initialGameState }: GameRuntimeProps) {
             { id: "nook", label: "Open the hidden reading nook" },
             { id: "ledger", label: "Read the forbidden ledger" },
           ]
-      : currentRoom === "dining_room"
-        ? [
-            { id: "table", label: "Inspect the banquet table" },
-            { id: "cabinet", label: "Check the side cabinet" },
-            { id: "bell", label: "Ring the silver bell" },
-          ]
-        : [
-            { id: "seal", label: "Break the binding seal" },
-            { id: "script", label: "Read the warding script" },
-            { id: "chain", label: "Touch the spirit chain" },
-          ];
+        : currentRoom === "dining_room"
+          ? [
+              { id: "table", label: "Inspect the banquet table" },
+              { id: "cabinet", label: "Check the side cabinet" },
+              { id: "bell", label: "Ring the silver bell" },
+            ]
+          : [
+              { id: "seal", label: "Break the binding seal" },
+              { id: "script", label: "Read the warding script" },
+              { id: "chain", label: "Touch the spirit chain" },
+            ];
 
   const wingCleared =
     completedRooms.includes("library") || completedRooms.includes("dining_room");
@@ -660,6 +789,29 @@ export function GameRuntime({ initialGameState }: GameRuntimeProps) {
                   ))}
                 </div>
               )}
+            </div>
+          </div>
+        ) : null}
+
+        {showRewardLayer ? (
+          <div className="absolute inset-0 z-40 flex items-center justify-center px-4">
+            <div className="w-full max-w-3xl rounded-xl border border-emerald-700/60 bg-zinc-950/85 p-5 shadow-xl backdrop-blur-sm">
+              <h3 className="text-center text-sm font-semibold uppercase tracking-wider text-emerald-200">
+                Choose Your Reward
+              </h3>
+              <div className="mt-3 grid gap-2 md:grid-cols-3">
+                {rewardOptions.map((reward) => (
+                  <button
+                    key={reward.id}
+                    type="button"
+                    onClick={() => handleRewardSelect(reward)}
+                    className="rounded-lg border border-emerald-600/50 bg-zinc-900/80 px-3 py-3 text-left text-sm text-zinc-100 hover:bg-zinc-800"
+                  >
+                    <div className="font-medium text-emerald-200">{reward.label}</div>
+                    <div className="mt-1 text-zinc-300">{reward.description}</div>
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
         ) : null}
