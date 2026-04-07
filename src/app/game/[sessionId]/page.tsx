@@ -22,7 +22,7 @@ function GameShell({ gameState }: { gameState: GameState }) {
       : null;
 
   return (
-    <div className="relative flex min-h-screen flex-1 flex-col bg-zinc-950 bg-cover bg-center bg-no-repeat bg-[url('/backgrounds/Haunted%20mansion%20entrance%20hall.png')] text-zinc-100">
+    <div className="relative flex min-h-screen flex-1 flex-col bg-zinc-950 bg-cover bg-center bg-no-repeat bg-[url('/backgrounds/entrance-hall.png')] text-zinc-100">
       <div
         className="pointer-events-none absolute inset-0 bg-black/60"
         aria-hidden
