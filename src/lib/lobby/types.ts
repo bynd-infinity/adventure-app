@@ -4,6 +4,7 @@ export type SessionRow = {
   status: string;
   current_scene: string;
   turn_index: number;
+  mode?: string | null;
 };
 
 export type PlayerRow = {

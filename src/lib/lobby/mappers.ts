@@ -1,5 +1,9 @@
-import type { Player, Session } from "@/types";
+import type { Player, Session, SessionMode } from "@/types";
 import type { PlayerRow, SessionRow } from "./types";
+
+function normalizeSessionMode(raw: string | null | undefined): SessionMode {
+  return raw === "solo" ? "solo" : "party";
+}
 
 export function mapSessionRow(row: SessionRow): Session {
   return {
@@ -8,6 +12,7 @@ export function mapSessionRow(row: SessionRow): Session {
     status: row.status,
     currentScene: row.current_scene,
     turnIndex: row.turn_index,
+    mode: normalizeSessionMode(row.mode),
   };
 }
 

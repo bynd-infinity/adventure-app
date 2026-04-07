@@ -1,6 +1,6 @@
 import { getSupabaseClient } from "@/lib/supabase";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Session } from "@/types";
+import type { Session, SessionMode } from "@/types";
 import { randomLobbyCode } from "./code";
 import { mapSessionRow } from "./mappers";
 import type { SessionRow } from "./types";
@@ -8,13 +8,14 @@ import type { SessionRow } from "./types";
 const UNIQUE_VIOLATION = "23505";
 
 export async function createSession(
+  mode: SessionMode,
   client: SupabaseClient = getSupabaseClient(),
 ): Promise<Session> {
   for (let attempt = 0; attempt < 12; attempt++) {
     const code = randomLobbyCode();
     const { data, error } = await client
       .from("sessions")
-      .insert({ code })
+      .insert({ code, mode })
       .select()
       .single();
 

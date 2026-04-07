@@ -11,9 +11,11 @@ import {
   createHostPlayer,
 } from "@/lib/lobby/players";
 import { lobbyStartConditionsMet } from "@/lib/lobby/rules";
+import type { SessionMode } from "@/types";
 import { getSupabaseClient } from "@/lib/supabase";
 import {
   createSession,
+  fetchSessionById,
   findSessionByCode,
   setSessionActive,
 } from "@/lib/lobby/session";
@@ -24,11 +26,18 @@ function lobbyPath(code: string) {
 
 export type LobbyError = { ok: false; error: string };
 
-export async function createLobbyAction(hostName: string): Promise<
+export async function createLobbyAction(
+  hostName: string,
+  mode: SessionMode,
+): Promise<
   | LobbyError
   | { ok: true; sessionId: string; code: string; playerId: string }
 > {
   try {
+    if (mode !== "solo" && mode !== "party") {
+      return { ok: false, error: "Invalid lobby mode." };
+    }
+
     console.log("ENV CHECK:", {
       hasUrl: !!process.env.NEXT_PUBLIC_SUPABASE_URL,
       hasAnonKey: !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
@@ -46,7 +55,7 @@ export async function createLobbyAction(hostName: string): Promise<
       testError,
     });
 
-    const session = await createSession(supabase);
+    const session = await createSession(mode, supabase);
     const player = await createHostPlayer(session.id, hostName, supabase);
     return {
       ok: true,
@@ -148,7 +157,21 @@ export async function startGameAction(
     };
   }
 
-  if (!lobbyStartConditionsMet(players)) {
+  let session;
+  try {
+    session = await fetchSessionById(sessionId);
+  } catch (e) {
+    return {
+      ok: false,
+      error: e instanceof Error ? e.message : "Failed to load session.",
+    };
+  }
+
+  if (!session) {
+    return { ok: false, error: "Session not found." };
+  }
+
+  if (!lobbyStartConditionsMet(players, session.mode)) {
     return { ok: false, error: "Start requirements are not met." };
   }
 

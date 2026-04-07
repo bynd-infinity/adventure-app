@@ -1,7 +1,11 @@
-import type { Player } from "@/types";
+import type { Player, SessionMode } from "@/types";
 
-export function lobbyStartConditionsMet(players: Player[]): boolean {
-  if (players.length < 2) return false;
+export function lobbyStartConditionsMet(
+  players: Player[],
+  mode: SessionMode,
+): boolean {
+  const minPlayers = mode === "solo" ? 1 : 2;
+  if (players.length < minPlayers) return false;
   for (const p of players) {
     if (!p.class) return false;
     if (!p.ready) return false;

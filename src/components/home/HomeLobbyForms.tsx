@@ -16,11 +16,15 @@ export function HomeLobbyForms() {
   const [joinCode, setJoinCode] = useState("");
   const [error, setError] = useState<string | null>(null);
 
-  function handleCreate(e: FormEvent) {
-    e.preventDefault();
+  function runCreate(mode: "party" | "solo") {
+    const name = createName.trim();
+    if (!name) {
+      setError("Enter your name to create a lobby.");
+      return;
+    }
     setError(null);
     startTransition(async () => {
-      const result = await createLobbyAction(createName);
+      const result = await createLobbyAction(name, mode);
       if (!result.ok) {
         setError(result.error);
         return;
@@ -28,6 +32,11 @@ export function HomeLobbyForms() {
       setStoredPlayerId(result.sessionId, result.playerId);
       router.push(`/lobby/${result.code}`);
     });
+  }
+
+  function handleCreateParty(e: FormEvent) {
+    e.preventDefault();
+    runCreate("party");
   }
 
   function handleJoin(e: FormEvent) {
@@ -46,7 +55,7 @@ export function HomeLobbyForms() {
 
   return (
     <div className="flex w-full max-w-md flex-col gap-10">
-      <form onSubmit={handleCreate} className="flex flex-col gap-3 text-left">
+      <form onSubmit={handleCreateParty} className="flex flex-col gap-3 text-left">
         <h2 className="text-sm font-medium text-zinc-300">Create lobby</h2>
         <label className="flex flex-col gap-1 text-sm text-zinc-400">
           Host name
@@ -60,13 +69,23 @@ export function HomeLobbyForms() {
             placeholder="Your name"
           />
         </label>
-        <button
-          type="submit"
-          disabled={isPending}
-          className="rounded-lg bg-white px-4 py-2 text-sm font-medium text-zinc-950 disabled:opacity-50"
-        >
-          Create Lobby
-        </button>
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <button
+            type="submit"
+            disabled={isPending}
+            className="rounded-lg bg-white px-4 py-2 text-sm font-medium text-zinc-950 disabled:opacity-50"
+          >
+            Create Party Lobby
+          </button>
+          <button
+            type="button"
+            disabled={isPending}
+            onClick={() => runCreate("solo")}
+            className="rounded-lg border border-zinc-600 bg-zinc-900/80 px-4 py-2 text-sm font-medium text-zinc-100 disabled:opacity-50"
+          >
+            Create Solo Lobby
+          </button>
+        </div>
       </form>
 
       <form onSubmit={handleJoin} className="flex flex-col gap-3 text-left">

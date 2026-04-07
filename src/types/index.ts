@@ -8,12 +8,15 @@ export type Player = {
   ready: boolean;
 };
 
+export type SessionMode = "solo" | "party";
+
 export type Session = {
   id: string;
   code: string;
   status: string;
   currentScene: string;
   turnIndex: number;
+  mode: SessionMode;
 };
 
 /** Phase 3 — Project-Outline.txt */

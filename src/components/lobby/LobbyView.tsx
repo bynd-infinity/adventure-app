@@ -63,7 +63,7 @@ export function LobbyView({ session, players }: LobbyViewProps) {
   }, [session.id, router]);
 
   const current = players.find((p) => p.id === currentPlayerId);
-  const canStart = lobbyStartConditionsMet(players);
+  const canStart = lobbyStartConditionsMet(players, session.mode);
 
   function handleClassChange(playerId: string, value: string) {
     setActionError(null);
@@ -153,11 +153,16 @@ export function LobbyView({ session, players }: LobbyViewProps) {
       <main className="mx-auto flex w-full max-w-lg flex-col gap-8">
         <header className="text-center">
           <h1 className="text-3xl font-semibold">Lobby</h1>
+          <p className="mt-2 text-sm font-medium text-violet-300">
+            Mode: {session.mode === "solo" ? "Solo" : "Party"}
+          </p>
           <p className="mt-2 font-mono text-lg tracking-widest text-zinc-300">
             {session.code}
           </p>
           <p className="mt-1 text-sm text-zinc-500">
-            Share this code with other players
+            {session.mode === "solo"
+              ? "Solo run — invite friends with the code if you like."
+              : "Share this code with other players."}
           </p>
         </header>
 
@@ -259,7 +264,9 @@ export function LobbyView({ session, players }: LobbyViewProps) {
             </button>
             {!canStart ? (
               <p className="text-center text-xs text-zinc-500">
-                Need at least 2 players, everyone must pick a class and be ready.
+                {session.mode === "solo"
+                  ? "Pick a class and mark ready to start."
+                  : "Need at least 2 players; everyone must pick a class and be ready."}
               </p>
             ) : null}
           </div>
