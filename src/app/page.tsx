@@ -5,10 +5,10 @@ export default function Home() {
     <div
       className="relative min-h-screen bg-cover bg-center bg-no-repeat"
       style={{
-        backgroundImage: "url('/backgrounds/entrance-hall.png')",
+        backgroundImage: "url('/backgrounds/title-screen.png')",
       }}
     >
-      <div className="absolute inset-0 bg-black/60" aria-hidden />
+      <div className="absolute inset-0 bg-black/50" aria-hidden />
       <div className="relative z-10 flex min-h-screen flex-col items-center justify-center text-white">
         <main className="flex flex-col items-center gap-10 px-6 py-16 text-center">
           <div>
