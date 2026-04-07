@@ -15,6 +15,7 @@ import {
   metaVillainEffects,
 } from "@/config/story/hauntedHouse";
 import { findStoryChoice, getStoryScene } from "@/lib/story/engine";
+import { storyConditionsPass } from "@/lib/story/conditions";
 import {
   applyStandaloneMetaEffects,
   processStoryEffects,
@@ -236,6 +237,7 @@ export function GameRuntime({ initialGameState }: GameRuntimeProps) {
   >(null);
   const [metaNarration, setMetaNarration] = useState<string | null>(null);
   const metaOnceKeysRef = useRef<Set<string>>(new Set());
+  const [storyFlags, setStoryFlags] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     if (!metaNarration) return;
@@ -360,6 +362,19 @@ export function GameRuntime({ initialGameState }: GameRuntimeProps) {
       canExitRoom: canExitNow,
       usedMetaOnceKeys: metaOnceKeysRef.current,
     });
+
+    if (proc.flagClears.length > 0 || proc.flagSets.length > 0) {
+      setStoryFlags((prev) => {
+        const next = { ...prev };
+        for (const k of proc.flagClears) {
+          delete next[k];
+        }
+        for (const k of proc.flagSets) {
+          next[k] = true;
+        }
+        return next;
+      });
+    }
 
     if (proc.metaMessage) {
       setMetaNarration(proc.metaMessage);
@@ -854,13 +869,13 @@ export function GameRuntime({ initialGameState }: GameRuntimeProps) {
   function handleRoomSelectChoice(nextRoom: RoomId) {
     if (sceneStage !== "choice" || choiceMode !== "room_select") return;
     if (nextRoom === "boss_room") {
-      const bossMeta = applyStandaloneMetaEffects(
-        [metaVillainEffects.beforeBossRoom],
-        {
-          canExitRoom: false,
-          usedMetaOnceKeys: metaOnceKeysRef.current,
-        },
-      );
+      const ctx = {
+        canExitRoom: false,
+        usedMetaOnceKeys: metaOnceKeysRef.current,
+      };
+      const bossMeta = storyFlags.found_letter_fragment
+        ? applyStandaloneMetaEffects([metaVillainEffects.bossLetterReveal], ctx)
+        : applyStandaloneMetaEffects([metaVillainEffects.beforeBossRoom], ctx);
       if (bossMeta) {
         setMetaNarration(bossMeta);
       }
@@ -909,6 +924,7 @@ export function GameRuntime({ initialGameState }: GameRuntimeProps) {
     setStoryCombatResumeSceneId(null);
     metaOnceKeysRef.current.clear();
     setMetaNarration(null);
+    setStoryFlags({});
     setResultCard(null);
     setRewardOptions([]);
     setRewardTargetPlayerId(null);
@@ -936,10 +952,12 @@ export function GameRuntime({ initialGameState }: GameRuntimeProps) {
   const roomChoices =
     currentRoom === "entrance_hall" &&
     entranceStorySceneForChoices?.type === "choice"
-      ? entranceStorySceneForChoices.choices.map((c) => ({
-          id: c.id,
-          label: c.label,
-        }))
+      ? entranceStorySceneForChoices.choices
+          .filter((c) => storyConditionsPass(c.conditions, storyFlags))
+          .map((c) => ({
+            id: c.id,
+            label: c.label,
+          }))
       : currentRoom === "library"
         ? [
             { id: "shelves", label: "Study the crumbling shelves" },
@@ -997,6 +1015,18 @@ export function GameRuntime({ initialGameState }: GameRuntimeProps) {
           <p className="rounded-md border border-amber-900/45 bg-zinc-950/80 px-3 py-2 text-xs font-medium italic leading-snug tracking-wide text-amber-100/85 shadow-[0_0_28px_rgba(251,191,36,0.14)] backdrop-blur-sm">
             {metaNarration}
           </p>
+        </div>
+      ) : null}
+      {process.env.NODE_ENV === "development" ? (
+        <div className="pointer-events-none fixed bottom-2 left-2 z-[60] max-w-[14rem] rounded border border-zinc-600/40 bg-black/75 px-2 py-1 font-mono text-[10px] text-zinc-400">
+          <div className="font-semibold uppercase tracking-wide text-zinc-500">
+            story flags
+          </div>
+          <pre className="mt-0.5 max-h-24 overflow-y-auto whitespace-pre-wrap break-all">
+            {Object.keys(storyFlags).length === 0
+              ? "—"
+              : JSON.stringify(storyFlags, null, 0)}
+          </pre>
         </div>
       ) : null}
       <div className="relative z-10 flex min-h-screen flex-1 flex-col pb-40">

@@ -7,6 +7,10 @@ export type StoryResultNext =
   | "run_complete"
   | "explore_more";
 
+export type StoryCondition =
+  | { type: "has_flag"; key: string }
+  | { type: "missing_flag"; key: string };
+
 export type StoryEffect =
   | { type: "damage_player"; amount: number }
   | { type: "heal_player"; amount: number }
@@ -31,7 +35,11 @@ export type StoryEffect =
       condition: "room_can_exit";
       thenEffects: StoryEffect[];
       elseSceneId: string;
+      /** Applied when the branch takes the else path (before navigating to elseSceneId). */
+      elseEffects?: StoryEffect[];
     }
+  | { type: "set_flag"; key: string }
+  | { type: "clear_flag"; key: string }
   /** Observing entity / meta layer; optional onceKey dedupes across the run. */
   | { type: "meta_message"; text: string; onceKey?: string };
 
@@ -42,6 +50,8 @@ export type StoryChoice = {
   nextSceneId: string;
   narrativeLine?: string;
   effects?: StoryEffect[];
+  /** All must pass for the choice to appear (AND). */
+  conditions?: StoryCondition[];
 };
 
 export type StorySceneIntro = {

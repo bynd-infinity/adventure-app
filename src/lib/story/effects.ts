@@ -28,6 +28,10 @@ export type ProcessedStoryEffects = {
   navigateToSceneId: string | null;
   /** Latest meta line from this effect chain (for UI). */
   metaMessage: string | null;
+  /** Keys to set true on the runtime flag store. */
+  flagSets: string[];
+  /** Keys to remove from the flag store. */
+  flagClears: string[];
 };
 
 const empty = (): ProcessedStoryEffects => ({
@@ -38,6 +42,8 @@ const empty = (): ProcessedStoryEffects => ({
   grantReward: null,
   navigateToSceneId: null,
   metaMessage: null,
+  flagSets: [],
+  flagClears: [],
 });
 
 function mergeProcessed(
@@ -52,6 +58,8 @@ function mergeProcessed(
     grantReward: b.grantReward ?? a.grantReward,
     navigateToSceneId: b.navigateToSceneId ?? a.navigateToSceneId,
     metaMessage: b.metaMessage != null ? b.metaMessage : a.metaMessage,
+    flagSets: [...a.flagSets, ...b.flagSets],
+    flagClears: [...a.flagClears, ...b.flagClears],
   };
 }
 
@@ -97,6 +105,10 @@ export function processStoryEffects(
         const inner = processStoryEffects(effect.thenEffects, ctx);
         acc = mergeProcessed(acc, inner);
       } else {
+        const elseAcc = effect.elseEffects?.length
+          ? processStoryEffects(effect.elseEffects, ctx)
+          : empty();
+        acc = mergeProcessed(acc, elseAcc);
         acc = mergeProcessed(acc, {
           ...empty(),
           navigateToSceneId: effect.elseSceneId,
@@ -110,6 +122,18 @@ export function processStoryEffects(
     }
 
     switch (effect.type) {
+      case "set_flag":
+        acc = mergeProcessed(acc, {
+          ...empty(),
+          flagSets: [effect.key],
+        });
+        break;
+      case "clear_flag":
+        acc = mergeProcessed(acc, {
+          ...empty(),
+          flagClears: [effect.key],
+        });
+        break;
       case "damage_player":
         acc = mergeProcessed(acc, {
           ...empty(),
