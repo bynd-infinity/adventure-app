@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { Enemy, GameState, Player } from "@/types";
 import {
   applyIncomingDamageToEnemy,
@@ -10,6 +10,16 @@ import {
   pickEnemyTargetPlayerIndex,
 } from "@/lib/game/enemies";
 import { generateRewardOptions, type RewardOption } from "@/lib/game/rewards";
+import {
+  hauntedHouseEntrance,
+  metaVillainEffects,
+} from "@/config/story/hauntedHouse";
+import { findStoryChoice, getStoryScene } from "@/lib/story/engine";
+import {
+  applyStandaloneMetaEffects,
+  processStoryEffects,
+} from "@/lib/story/effects";
+import type { StoryResultNext } from "@/lib/story/types";
 import { ActionBar } from "./ActionBar";
 import { EnemyPanel } from "./EnemyPanel";
 import { GameTopBar } from "./GameTopBar";
@@ -38,13 +48,7 @@ type LocalGameState = {
 
 type EncounterStatus = "active" | "victory" | "defeat";
 type SceneStageMode = "intro" | "choice" | "combat" | "reward" | "result";
-type ResultNext =
-  | "choice"
-  | "room_select"
-  | "stay"
-  | "run_complete"
-  /** Back to current room action choices (exploration not finished). */
-  | "explore_more";
+type ResultNext = StoryResultNext;
 type ChoiceMode = "room_action" | "room_select";
 type RoomId = "entrance_hall" | "library" | "dining_room" | "boss_room";
 
@@ -215,10 +219,29 @@ export function GameRuntime({ initialGameState }: GameRuntimeProps) {
   const [resultCard, setResultCard] = useState<ResultCard | null>(null);
   const [rewardOptions, setRewardOptions] = useState<RewardOption[]>([]);
   const [rewardTargetPlayerId, setRewardTargetPlayerId] = useState<string | null>(null);
-  const [narrationLog, setNarrationLog] = useState<string[]>([
-    ROOM_INTRO.entrance_hall,
-  ]);
+  const [narrationLog, setNarrationLog] = useState<string[]>(() => {
+    const intro = getStoryScene(
+      hauntedHouseEntrance,
+      hauntedHouseEntrance.initialSceneId,
+    );
+    return [intro?.type === "intro" ? intro.text : ROOM_INTRO.entrance_hall];
+  });
   const [roomPacing, setRoomPacing] = useState<RoomPacingState>(initialRoomPacing);
+  const [entranceStorySceneId, setEntranceStorySceneId] = useState(
+    hauntedHouseEntrance.initialSceneId,
+  );
+  const [storyClues, setStoryClues] = useState<string[]>([]);
+  const [storyCombatResumeSceneId, setStoryCombatResumeSceneId] = useState<
+    string | null
+  >(null);
+  const [metaNarration, setMetaNarration] = useState<string | null>(null);
+  const metaOnceKeysRef = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    if (!metaNarration) return;
+    const t = window.setTimeout(() => setMetaNarration(null), 4200);
+    return () => window.clearTimeout(t);
+  }, [metaNarration]);
 
   function pushNarration(line: string) {
     setNarrationLog((prev) => [line, ...prev].slice(0, 4));
@@ -268,6 +291,10 @@ export function GameRuntime({ initialGameState }: GameRuntimeProps) {
     setSceneStage("intro");
     setEncounterStatus("active");
     setRoomPacing(initialRoomPacing());
+    setStoryCombatResumeSceneId(null);
+    if (room === "entrance_hall") {
+      setEntranceStorySceneId(hauntedHouseEntrance.initialSceneId);
+    }
     setResultCard(null);
     setRewardOptions([]);
     setRewardTargetPlayerId(null);
@@ -278,11 +305,27 @@ export function GameRuntime({ initialGameState }: GameRuntimeProps) {
       phase: "player",
       turnIndex: getFirstLivingPlayerIndex(prev) ?? 0,
     }));
-    pushNarration(ROOM_INTRO[room]);
+    if (room === "entrance_hall") {
+      const intro = getStoryScene(
+        hauntedHouseEntrance,
+        hauntedHouseEntrance.initialSceneId,
+      );
+      pushNarration(intro?.type === "intro" ? intro.text : ROOM_INTRO[room]);
+    } else {
+      pushNarration(ROOM_INTRO[room]);
+    }
   }
 
-  function beginRoomCombat(room: RoomId) {
+  function beginRoomCombat(
+    room: RoomId,
+    opts?: { entranceResumeSceneId?: string },
+  ) {
     setRoomPacing((p) => ({ ...p, combatTriggered: true }));
+    if (room === "entrance_hall" && opts?.entranceResumeSceneId) {
+      setStoryCombatResumeSceneId(opts.entranceResumeSceneId);
+    } else if (room !== "entrance_hall") {
+      setStoryCombatResumeSceneId(null);
+    }
     const enemies = generateEncounter(room);
     setSceneStage("combat");
     setEncounterStatus("active");
@@ -293,6 +336,114 @@ export function GameRuntime({ initialGameState }: GameRuntimeProps) {
       phase: "player",
       turnIndex: getFirstLivingPlayerIndex(prev) ?? 0,
     }));
+  }
+
+  function handleEntranceStoryChoice(choiceId: string) {
+    const scene = getStoryScene(hauntedHouseEntrance, entranceStorySceneId);
+    if (!scene || scene.type !== "choice") return;
+
+    const choice = findStoryChoice(scene, choiceId);
+    if (!choice) return;
+
+    const nextInteraction = roomPacing.interactionCount + 1;
+    setRoomPacing((p) => ({ ...p, interactionCount: p.interactionCount + 1 }));
+
+    const canExitNow = roomExitCriteriaMet({
+      interactionCount: nextInteraction,
+      combatTriggered: roomPacing.combatTriggered,
+      combatResolved: roomPacing.combatResolved,
+    });
+
+    if (choice.narrativeLine) pushNarration(choice.narrativeLine);
+
+    const proc = processStoryEffects(choice.effects, {
+      canExitRoom: canExitNow,
+      usedMetaOnceKeys: metaOnceKeysRef.current,
+    });
+
+    if (proc.metaMessage) {
+      setMetaNarration(proc.metaMessage);
+    }
+
+    if (proc.clueIds.length > 0) {
+      setStoryClues((prev) => [...prev, ...proc.clueIds]);
+    }
+
+    if (proc.healFirstLiving > 0) {
+      const idx = getFirstLivingPlayerIndex(gameState);
+      if (idx !== null) {
+        setGameState((prev) => ({
+          ...prev,
+          players: prev.players.map((p, i) =>
+            i === idx
+              ? {
+                  ...p,
+                  hp: clampHp(Math.min(p.maxHp, p.hp + proc.healFirstLiving)),
+                }
+              : p,
+          ),
+        }));
+      }
+    }
+
+    if (proc.damageFirstLiving > 0) {
+      const firstLiving = getFirstLivingPlayerIndex(gameState);
+      if (firstLiving !== null) {
+        const nextPlayers = gameState.players.map((player, idx) =>
+          idx === firstLiving
+            ? { ...player, hp: clampHp(player.hp - proc.damageFirstLiving) }
+            : player,
+        );
+        const livingAfterPenalty = nextPlayers.filter((p) => p.hp > 0);
+        setGameState((prev) => ({ ...prev, players: nextPlayers }));
+
+        if (livingAfterPenalty.length === 0) {
+          setEncounterStatus("defeat");
+          setResultCard({
+            title: "Defeat",
+            message: "The room drains your final strength before battle begins.",
+            cta: "Retry (Soon)",
+            next: "stay",
+          });
+          setSceneStage("result");
+          return;
+        }
+      }
+    }
+
+    if (proc.navigateToSceneId) {
+      const rs = getStoryScene(hauntedHouseEntrance, proc.navigateToSceneId);
+      if (rs?.type === "result") {
+        setResultCard({
+          title: rs.title,
+          message: rs.text,
+          cta: rs.cta,
+          next: rs.resultNext,
+        });
+        setSceneStage("result");
+      }
+      return;
+    }
+
+    if (proc.grantReward) {
+      if (proc.grantReward.markRoomComplete) {
+        markRoomComplete(proc.grantReward.markRoomComplete);
+      }
+      startRewardStage(
+        activePlayer?.id ?? gameState.players[0]?.id ?? "",
+        proc.grantReward.completionCard,
+      );
+      return;
+    }
+
+    if (proc.combat) {
+      beginRoomCombat(proc.combat.room, {
+        entranceResumeSceneId: proc.combat.resumeSceneId,
+      });
+      return;
+    }
+
+    setEntranceStorySceneId(choice.nextSceneId);
   }
 
   const activePlayerIndex =
@@ -483,7 +634,22 @@ export function GameRuntime({ initialGameState }: GameRuntimeProps) {
         combatResolved: true,
       };
       setRoomPacing(pacingAfterWin);
+      if (currentRoom === "entrance_hall") {
+        setEntranceStorySceneId(storyCombatResumeSceneId ?? "eh_hub");
+        setStoryCombatResumeSceneId(null);
+      }
       const canLeaveRoom = roomExitCriteriaMet(pacingAfterWin);
+
+      const combatMeta = applyStandaloneMetaEffects(
+        [metaVillainEffects.afterFirstCombatWin],
+        {
+          canExitRoom: canLeaveRoom,
+          usedMetaOnceKeys: metaOnceKeysRef.current,
+        },
+      );
+      if (combatMeta) {
+        setMetaNarration(combatMeta);
+      }
 
       if (canLeaveRoom) {
         markRoomComplete(currentRoom);
@@ -557,16 +723,45 @@ export function GameRuntime({ initialGameState }: GameRuntimeProps) {
     setRewardOptions([]);
     setRewardTargetPlayerId(null);
     setSceneStage("result");
+
+    const rewardMeta = applyStandaloneMetaEffects(
+      [metaVillainEffects.afterFirstReward],
+      {
+        canExitRoom: false,
+        usedMetaOnceKeys: metaOnceKeysRef.current,
+      },
+    );
+    if (rewardMeta) {
+      setMetaNarration(rewardMeta);
+    }
   }
 
   function handleBeginExploration() {
     setChoiceMode("room_action");
     setSceneStage("choice");
+    if (currentRoom === "entrance_hall") {
+      const intro = getStoryScene(hauntedHouseEntrance, entranceStorySceneId);
+      if (intro?.type === "intro") {
+        setEntranceStorySceneId(intro.nextSceneId);
+        const hub = getStoryScene(hauntedHouseEntrance, intro.nextSceneId);
+        if (hub?.type === "choice" && hub.text) {
+          pushNarration(`${ROOM_LABELS.entrance_hall}: ${hub.text}`);
+        } else {
+          pushNarration(`${ROOM_LABELS.entrance_hall}: choose your path.`);
+        }
+        return;
+      }
+    }
     pushNarration(`${ROOM_LABELS[currentRoom]}: choose your path.`);
   }
 
   function handleRoomActionChoice(choiceId: string) {
     if (sceneStage !== "choice" || choiceMode !== "room_action") return;
+
+    if (currentRoom === "entrance_hall") {
+      handleEntranceStoryChoice(choiceId);
+      return;
+    }
 
     const nextInteraction = roomPacing.interactionCount + 1;
     setRoomPacing((p) => ({ ...p, interactionCount: p.interactionCount + 1 }));
@@ -576,36 +771,6 @@ export function GameRuntime({ initialGameState }: GameRuntimeProps) {
       combatTriggered: roomPacing.combatTriggered,
       combatResolved: roomPacing.combatResolved,
     });
-
-    if (currentRoom === "entrance_hall") {
-      if (choiceId === "staircase") {
-        pushNarration("You step toward the staircase. Something cold manifests ahead.");
-        beginRoomCombat("entrance_hall");
-        return;
-      }
-      if (choiceId === "doorway") {
-        pushNarration("You search the doorway and find only cold silence.");
-        if (canExitNow) {
-          markRoomComplete("entrance_hall");
-          startRewardStage(activePlayer?.id ?? gameState.players[0]?.id ?? "", {
-            title: "A Hollow Discovery",
-            message: "Nothing stirs here. Another wing calls to you.",
-            cta: "Leave Room",
-            next: "room_select",
-          });
-        } else {
-          setResultCard(EXPLORE_RESULT);
-          setSceneStage("result");
-        }
-        return;
-      }
-      applyRiskPenaltyThenCombat(
-        "entrance_hall",
-        2,
-        "Your call echoes back. The chill bites for 2 HP.",
-      );
-      return;
-    }
 
     if (currentRoom === "library") {
       if (choiceId === "shelves") {
@@ -688,6 +853,18 @@ export function GameRuntime({ initialGameState }: GameRuntimeProps) {
 
   function handleRoomSelectChoice(nextRoom: RoomId) {
     if (sceneStage !== "choice" || choiceMode !== "room_select") return;
+    if (nextRoom === "boss_room") {
+      const bossMeta = applyStandaloneMetaEffects(
+        [metaVillainEffects.beforeBossRoom],
+        {
+          canExitRoom: false,
+          usedMetaOnceKeys: metaOnceKeysRef.current,
+        },
+      );
+      if (bossMeta) {
+        setMetaNarration(bossMeta);
+      }
+    }
     enterRoom(nextRoom);
   }
 
@@ -702,6 +879,9 @@ export function GameRuntime({ initialGameState }: GameRuntimeProps) {
       setChoiceMode("room_action");
       setSceneStage("choice");
       setEncounterStatus("active");
+      if (currentRoom === "entrance_hall") {
+        setEntranceStorySceneId("eh_hub");
+      }
       return;
     }
 
@@ -724,11 +904,22 @@ export function GameRuntime({ initialGameState }: GameRuntimeProps) {
     setEncounterStatus("active");
     setCompletedRooms([]);
     setRoomPacing(initialRoomPacing());
+    setEntranceStorySceneId(hauntedHouseEntrance.initialSceneId);
+    setStoryClues([]);
+    setStoryCombatResumeSceneId(null);
+    metaOnceKeysRef.current.clear();
+    setMetaNarration(null);
     setResultCard(null);
     setRewardOptions([]);
     setRewardTargetPlayerId(null);
     setGameState(initLocalState(initialGameState));
-    setNarrationLog([ROOM_INTRO.entrance_hall]);
+    setNarrationLog(() => {
+      const intro = getStoryScene(
+        hauntedHouseEntrance,
+        hauntedHouseEntrance.initialSceneId,
+      );
+      return [intro?.type === "intro" ? intro.text : ROOM_INTRO.entrance_hall];
+    });
   }
 
   const showCombatLayer = sceneStage === "combat";
@@ -738,13 +929,17 @@ export function GameRuntime({ initialGameState }: GameRuntimeProps) {
   const showResultLayer = sceneStage === "result" && !!resultCard;
   const mutedHud = !showCombatLayer;
 
+  const entranceStorySceneForChoices = getStoryScene(
+    hauntedHouseEntrance,
+    entranceStorySceneId,
+  );
   const roomChoices =
-    currentRoom === "entrance_hall"
-      ? [
-          { id: "staircase", label: "Investigate the staircase" },
-          { id: "doorway", label: "Search the dark doorway" },
-          { id: "callout", label: "Call out into the hall" },
-        ]
+    currentRoom === "entrance_hall" &&
+    entranceStorySceneForChoices?.type === "choice"
+      ? entranceStorySceneForChoices.choices.map((c) => ({
+          id: c.id,
+          label: c.label,
+        }))
       : currentRoom === "library"
         ? [
             { id: "shelves", label: "Study the crumbling shelves" },
@@ -781,12 +976,29 @@ export function GameRuntime({ initialGameState }: GameRuntimeProps) {
       ? "url('/backgrounds/boss-room.png'), url('/backgrounds/entrance-hall.png')"
       : `url('${ROOM_BACKGROUNDS[currentRoom]}')`;
 
+  const entranceIntroScene = getStoryScene(
+    hauntedHouseEntrance,
+    entranceStorySceneId,
+  );
+
   return (
     <div
       className="relative flex min-h-screen flex-1 flex-col bg-zinc-950 bg-cover bg-center bg-no-repeat text-zinc-100"
       style={{ backgroundImage: backgroundStyle }}
+      data-story-clues={storyClues.length}
     >
       <div className="pointer-events-none absolute inset-0 bg-black/40" aria-hidden />
+      {metaNarration ? (
+        <div
+          role="status"
+          aria-live="polite"
+          className="pointer-events-none fixed left-1/2 top-[11%] z-[55] max-w-sm -translate-x-1/2 px-4 text-center"
+        >
+          <p className="rounded-md border border-amber-900/45 bg-zinc-950/80 px-3 py-2 text-xs font-medium italic leading-snug tracking-wide text-amber-100/85 shadow-[0_0_28px_rgba(251,191,36,0.14)] backdrop-blur-sm">
+            {metaNarration}
+          </p>
+        </div>
+      ) : null}
       <div className="relative z-10 flex min-h-screen flex-1 flex-col pb-40">
         <GameTopBar scene={gameState.scene} phase={gameState.phase} />
         <PartyPanel
@@ -822,9 +1034,15 @@ export function GameRuntime({ initialGameState }: GameRuntimeProps) {
           <div className="absolute inset-0 z-40 flex items-center justify-center px-4">
             <div className="w-full max-w-xl rounded-xl border border-violet-700/60 bg-zinc-950/85 p-6 text-center shadow-xl backdrop-blur-sm">
               <h2 className="text-2xl font-semibold text-violet-100">
-                {ROOM_LABELS[currentRoom]}
+                {currentRoom === "entrance_hall" && entranceIntroScene?.type === "intro"
+                  ? entranceIntroScene.roomTitle
+                  : ROOM_LABELS[currentRoom]}
               </h2>
-              <p className="mt-3 text-sm text-zinc-300">{ROOM_INTRO[currentRoom]}</p>
+              <p className="mt-3 text-sm text-zinc-300">
+                {currentRoom === "entrance_hall" && entranceIntroScene?.type === "intro"
+                  ? entranceIntroScene.text
+                  : ROOM_INTRO[currentRoom]}
+              </p>
               <button
                 type="button"
                 onClick={handleBeginExploration}
