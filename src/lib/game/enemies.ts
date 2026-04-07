@@ -1,4 +1,4 @@
-import type { Enemy, EnemyBehavior } from "@/types";
+import type { Enemy, EnemyBehavior, EnemyTraitTag } from "@/types";
 
 /** Template definitions — not full instances; use spawn helpers for runtime enemies. */
 export type EnemyTemplate = {
@@ -10,6 +10,8 @@ export type EnemyTemplate = {
   /** Optional hints for which rooms favor this foe (documentation / filtering). */
   roomTags?: string[];
   roleLabel?: string;
+  traitLabel?: string;
+  traitTag?: EnemyTraitTag;
 };
 
 export const ENEMY_TEMPLATES: Record<string, EnemyTemplate> = {
@@ -21,6 +23,8 @@ export const ENEMY_TEMPLATES: Record<string, EnemyTemplate> = {
     behavior: "fragile",
     roomTags: ["entrance_hall", "light", "ghost"],
     roleLabel: "Drifting specter",
+    traitLabel: "Spectral",
+    traitTag: "spectral",
   },
   cursed_doll: {
     id: "cursed_doll",
@@ -30,6 +34,8 @@ export const ENEMY_TEMPLATES: Record<string, EnemyTemplate> = {
     behavior: "aggressive",
     roomTags: ["dining_room", "curse", "ambush"],
     roleLabel: "Porcelain malice",
+    traitLabel: "Aggressive",
+    traitTag: "mundane",
   },
   shadow_figure: {
     id: "shadow_figure",
@@ -39,6 +45,8 @@ export const ENEMY_TEMPLATES: Record<string, EnemyTemplate> = {
     behavior: "fragile",
     roomTags: ["library", "ghost", "knowledge"],
     roleLabel: "A silhouette with no face",
+    traitLabel: "Spectral",
+    traitTag: "spectral",
   },
   possessed_armor: {
     id: "possessed_armor",
@@ -48,6 +56,8 @@ export const ENEMY_TEMPLATES: Record<string, EnemyTemplate> = {
     behavior: "defensive",
     roomTags: ["dining_room", "mixed"],
     roleLabel: "Empty steel that still swings",
+    traitLabel: "Defensive",
+    traitTag: "mundane",
   },
   bound_spirit: {
     id: "bound_spirit",
@@ -57,6 +67,8 @@ export const ENEMY_TEMPLATES: Record<string, EnemyTemplate> = {
     behavior: "boss",
     roomTags: ["boss_room"],
     roleLabel: "The heart of the haunting",
+    traitLabel: "Spectral",
+    traitTag: "spectral",
   },
 };
 
@@ -88,6 +100,8 @@ export function spawnFromTemplate(templateKey: string, instanceKey: string): Ene
     baseDamage: t.baseDamage,
     templateId: t.id,
     roleLabel: t.roleLabel,
+    traitLabel: t.traitLabel,
+    traitTag: t.traitTag,
   };
 }
 
@@ -97,7 +111,8 @@ export function enemyAttackRollModifier(behavior: EnemyBehavior): number {
     case "aggressive":
       return 1;
     case "fragile":
-      return -1;
+      /** Penalty moved to disadvantage on the attack roll (two d20, keep lower). */
+      return 0;
     case "defensive":
       return 0;
     case "boss":
@@ -105,6 +120,10 @@ export function enemyAttackRollModifier(behavior: EnemyBehavior): number {
     default:
       return 0;
   }
+}
+
+export function enemyAttackUsesDisadvantage(behavior: EnemyBehavior): boolean {
+  return behavior === "fragile";
 }
 
 /** Defensive foes shrug a little damage; others take full amount. */

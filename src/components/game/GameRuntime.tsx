@@ -3,12 +3,16 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Enemy, GameState, Player } from "@/types";
+import { characterPortraitSrc } from "@/config/characters";
+import { playerAttackRollMode } from "@/lib/game/combatAdvantage";
 import {
   applyIncomingDamageToEnemy,
   enemyAttackRollModifier,
+  enemyAttackUsesDisadvantage,
   generateEncounter,
   pickEnemyTargetPlayerIndex,
 } from "@/lib/game/enemies";
+import { explorationHasAdvantage } from "@/lib/game/explorationAdvantage";
 import { pickRandomReward } from "@/lib/game/rewards";
 import { HAUNTED_HOUSE_JOURNAL_ENTRIES } from "@/config/story/hauntedHouseJournal";
 import {
@@ -21,10 +25,19 @@ import {
   processStoryEffects,
   type ProcessedStoryEffects,
 } from "@/lib/story/effects";
+import { initialRpgStatsForClass } from "@/lib/game/classStats";
 import {
   resolveExplorationAction,
   type ExplorationActionKind,
 } from "@/lib/game/explorationResolve";
+import {
+  combineRollModes,
+  combatTierPrefix,
+  formatStatRollSuffixWithMode,
+  outcomeTierFromTotal,
+  rollWithStatAndMode,
+  type OutcomeTier,
+} from "@/lib/game/statRolls";
 import type { StoryResultNext } from "@/lib/story/types";
 import { ActionBar } from "./ActionBar";
 import { JournalPanel } from "./JournalPanel";
@@ -132,14 +145,17 @@ const ROOM_INTRO: Record<RoomId, string> = {
 function initLocalState(initial: GameState): LocalGameState {
   return {
     scene: "entrance_hall",
-    players: initial.players.map((p) => ({
-      ...p,
-      maxHp: p.hp,
-      power: 1,
-      guard: 1,
-      mind: 1,
-      skill: 1,
-    })),
+    players: initial.players.map((p) => {
+      const s = initialRpgStatsForClass(p.class);
+      return {
+        ...p,
+        maxHp: p.hp,
+        power: s.power,
+        guard: s.guard,
+        mind: s.mind,
+        skill: s.skill,
+      };
+    }),
     enemies: initial.enemies,
     turnIndex: initial.turnIndex,
     phase: initial.phase,
@@ -178,8 +194,9 @@ function getNextLivingPlayerIndex(state: LocalGameState, fromIndex: number): num
   return null;
 }
 
+/** Enemy attack roll total vs old hit thresholds (unchanged). */
 function resolveAttackDamage(
-  roll: number,
+  attackTotal: number,
   critBonus: number,
   strongBonus: number,
   baseDamage: number = BASE_DAMAGE,
@@ -187,27 +204,46 @@ function resolveAttackDamage(
   damage: number;
   outcome: "miss" | "hit" | "strong" | "critical";
 } {
-  if (roll >= 19) {
+  if (attackTotal >= 19) {
     return {
       outcome: "critical",
       damage:
         baseDamage + rollDie(DAMAGE_VARIANCE * 2 + 1) - DAMAGE_VARIANCE + critBonus,
     };
   }
-  if (roll >= 13) {
+  if (attackTotal >= 13) {
     return {
       outcome: "strong",
       damage:
         baseDamage + rollDie(DAMAGE_VARIANCE * 2 + 1) - DAMAGE_VARIANCE + strongBonus,
     };
   }
-  if (roll >= 6) {
+  if (attackTotal >= 6) {
     return {
       outcome: "hit",
       damage: baseDamage + rollDie(DAMAGE_VARIANCE * 2 + 1) - DAMAGE_VARIANCE,
     };
   }
   return { outcome: "miss", damage: 0 };
+}
+
+function resolvePlayerAttackByTier(
+  tier: OutcomeTier,
+  power: number,
+): { damage: number; outcome: "miss" | "hit" | "strong" | "critical" } {
+  if (tier === "fail") return { damage: 0, outcome: "miss" };
+  const variance = rollDie(DAMAGE_VARIANCE * 2 + 1) - DAMAGE_VARIANCE;
+  const base = BASE_DAMAGE + variance;
+  if (tier === "success") {
+    return { damage: Math.max(1, base), outcome: "hit" };
+  }
+  if (tier === "strong") {
+    return {
+      damage: base + 3 + Math.min(2, Math.floor(power / 2)),
+      outcome: "strong",
+    };
+  }
+  return { damage: base + 6 + power, outcome: "critical" };
 }
 
 function rewardNarrationLabel(rewardId: string): string {
@@ -538,6 +574,7 @@ export function GameRuntime({ initialGameState }: GameRuntimeProps) {
 
   function handleExplorationAction(action: ExplorationActionKind) {
     if (sceneStage !== "action" || choiceMode !== "room_action") return;
+    if (!activePlayer) return;
 
     const pacingAfter: RoomPacingState = {
       ...roomPacing,
@@ -548,15 +585,38 @@ export function GameRuntime({ initialGameState }: GameRuntimeProps) {
     };
     setRoomPacing(pacingAfter);
 
-    const roll = rollDie(20);
+    const stat =
+      action === "search"
+        ? activePlayer.skill
+        : action === "inspect"
+          ? activePlayer.mind
+          : activePlayer.guard;
+    const explorationAdv = explorationHasAdvantage(
+      activePlayer.class,
+      action,
+      currentRoom,
+      storyFlags,
+      pacingAfter,
+    );
+    const rollMode = combineRollModes(explorationAdv, false);
+    const { d20, d20Other, total } = rollWithStatAndMode(stat, rollMode);
+    const tier = outcomeTierFromTotal(total);
+    const rs = formatStatRollSuffixWithMode(
+      rollMode,
+      d20,
+      d20Other,
+      stat,
+      total,
+    );
     const canExitNow = roomExitCriteriaMet(pacingAfter);
 
     const output = resolveExplorationAction(
       currentRoom,
       action,
-      roll,
+      tier,
       storyFlags,
       pacingAfter,
+      rs,
     );
 
     const proc = processStoryEffects(output.effects, {
@@ -667,8 +727,27 @@ export function GameRuntime({ initialGameState }: GameRuntimeProps) {
       }
 
       const target = current.players[targetIndex]!;
-      const roll = rollDie(20) + enemyAttackRollModifier(enemy.behavior);
-      const { damage, outcome } = resolveAttackDamage(roll, 2, 0, enemy.baseDamage);
+      const mod = enemyAttackRollModifier(enemy.behavior);
+      let attackTotal: number;
+      let rollNote: string;
+      if (enemyAttackUsesDisadvantage(enemy.behavior)) {
+        const d1 = rollDie(20);
+        const d2 = rollDie(20);
+        const lowD = Math.min(d1, d2);
+        const highD = Math.max(d1, d2);
+        attackTotal = lowD + mod;
+        rollNote = `d20 ${lowD}/${highD} dis + ${mod} = ${attackTotal}`;
+      } else {
+        const d = rollDie(20);
+        attackTotal = d + mod;
+        rollNote = `${attackTotal}`;
+      }
+      const { damage, outcome } = resolveAttackDamage(
+        attackTotal,
+        2,
+        0,
+        enemy.baseDamage,
+      );
       const reduced = Math.max(0, damage - target.guard);
       const nextHp = clampHp(target.hp - reduced);
       const nextPlayers = current.players.map((p, idx) =>
@@ -687,7 +766,7 @@ export function GameRuntime({ initialGameState }: GameRuntimeProps) {
       const defeatedText = nextHp === 0 ? ` ${target.name} collapses.` : "";
 
       enemyNarrations.push(
-        `${enemy.name} rolls ${roll} and ${outcomeText} ${target.name}.${defeatedText}`,
+        `${enemy.name} rolls ${rollNote} and ${outcomeText} ${target.name}.${defeatedText}`,
       );
 
       current = {
@@ -753,10 +832,13 @@ export function GameRuntime({ initialGameState }: GameRuntimeProps) {
       return;
     }
 
-    // Rule source: Core-Rule-Set -> "Roll 1d20 + relevant stat".
-    const roll = rollDie(20);
-    const total = roll + activePlayer.power;
-    const { damage, outcome } = resolveAttackDamage(total, 4, 2);
+    const attackMode = playerAttackRollMode(target);
+    const { d20, d20Other, total } = rollWithStatAndMode(
+      activePlayer.power,
+      attackMode,
+    );
+    const tier = outcomeTierFromTotal(total);
+    const { damage, outcome } = resolvePlayerAttackByTier(tier, activePlayer.power);
     const rawHit = Math.max(0, damage + activePlayer.power - 1);
     const finalDamage = applyIncomingDamageToEnemy(target, rawHit);
 
@@ -809,7 +891,9 @@ export function GameRuntime({ initialGameState }: GameRuntimeProps) {
     if (enemyWillAct) return;
 
     if (outcome === "miss") {
-      pushNarration(`${activePlayer.name} misses with a ${roll}.`);
+      pushNarration(
+        `${combatTierPrefix("fail")} ${formatStatRollSuffixWithMode(attackMode, d20, d20Other, activePlayer.power, total)}`,
+      );
       return;
     }
 
@@ -838,13 +922,7 @@ export function GameRuntime({ initialGameState }: GameRuntimeProps) {
       }
 
       pushNarration(
-        `${activePlayer.name} ${
-          outcome === "critical"
-            ? "critically strikes"
-            : outcome === "strong"
-              ? "lands a strong hit on"
-              : "strikes"
-        } ${target.name} for ${finalDamage}.`,
+        `${combatTierPrefix(tier)} ${activePlayer.name} strikes ${target.name} for ${finalDamage}.${formatStatRollSuffixWithMode(attackMode, d20, d20Other, activePlayer.power, total)}`,
       );
       if (canLeaveRoom) {
         markRoomComplete(currentRoom);
@@ -859,14 +937,20 @@ export function GameRuntime({ initialGameState }: GameRuntimeProps) {
     }
 
     if (outcome === "critical") {
-      pushNarration(`${activePlayer.name} lands a critical hit for ${finalDamage}.`);
+      pushNarration(
+        `${combatTierPrefix(tier)} ${activePlayer.name} drives a brutal strike into ${target.name} for ${finalDamage}.${formatStatRollSuffixWithMode(attackMode, d20, d20Other, activePlayer.power, total)}`,
+      );
       return;
     }
     if (outcome === "strong") {
-      pushNarration(`${activePlayer.name} lands a strong hit for ${finalDamage}.`);
+      pushNarration(
+        `${combatTierPrefix(tier)} ${activePlayer.name} hits ${target.name} hard for ${finalDamage}.${formatStatRollSuffixWithMode(attackMode, d20, d20Other, activePlayer.power, total)}`,
+      );
       return;
     }
-    pushNarration(`${activePlayer.name} hits for ${finalDamage}.`);
+    pushNarration(
+      `${combatTierPrefix(tier)} ${activePlayer.name} hits ${target.name} for ${finalDamage}.${formatStatRollSuffixWithMode(attackMode, d20, d20Other, activePlayer.power, total)}`,
+    );
   }
 
   function handleBeginExploration() {
@@ -1114,7 +1198,15 @@ export function GameRuntime({ initialGameState }: GameRuntimeProps) {
             <main className="flex flex-1 items-center justify-center">
               <EnemyPanel enemies={gameState.enemies} />
             </main>
-            <SceneStage narrationLog={narrationLog} />
+            <SceneStage
+              narrationLog={narrationLog}
+              portraitSrc={
+                activePlayer
+                  ? characterPortraitSrc(activePlayer.class)
+                  : null
+              }
+              portraitAlt={activePlayer?.name}
+            />
           </>
         ) : (
           <main className="flex flex-1 items-center justify-center" />

@@ -43,6 +43,11 @@ function EnemyCard({
           {enemy.roleLabel}
         </p>
       ) : null}
+      {enemy.traitLabel ? (
+        <p className="mt-1 text-[11px] font-medium tracking-wide text-amber-200/75">
+          {enemy.traitLabel}
+        </p>
+      ) : null}
     </div>
   );
 }
