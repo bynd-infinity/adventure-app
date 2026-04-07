@@ -12,6 +12,8 @@ type GameRuntimeProps = {
   initialGameState: GameState;
 };
 type EncounterStatus = "active" | "victory" | "defeat";
+type SceneStage = "intro" | "choice" | "combat" | "result";
+type ResultCard = { title: string; message: string; cta: string };
 
 const BASE_DAMAGE = 5;
 const DAMAGE_VARIANCE = 2;
@@ -78,6 +80,8 @@ function resolveAttackDamage(roll: number, critBonus: number, strongBonus: numbe
 export function GameRuntime({ initialGameState }: GameRuntimeProps) {
   const [gameState, setGameState] = useState(initialGameState);
   const [encounterStatus, setEncounterStatus] = useState<EncounterStatus>("active");
+  const [sceneStage, setSceneStage] = useState<SceneStage>("intro");
+  const [resultCard, setResultCard] = useState<ResultCard | null>(null);
   const [narrationLog, setNarrationLog] = useState<string[]>([
     "Cold air drifts through the hall. Something stirs in the shadows.",
   ]);
@@ -146,7 +150,12 @@ export function GameRuntime({ initialGameState }: GameRuntimeProps) {
   }
 
   function handleAttack() {
-    if (!activePlayer || gameState.phase !== "player" || encounterStatus !== "active") {
+    if (
+      !activePlayer ||
+      gameState.phase !== "player" ||
+      encounterStatus !== "active" ||
+      sceneStage !== "combat"
+    ) {
       return;
     }
 
@@ -192,6 +201,12 @@ export function GameRuntime({ initialGameState }: GameRuntimeProps) {
         pushNarration(enemyTurn.enemyNarration);
         if (getLivingPlayers(enemyTurn.nextState).length === 0) {
           setEncounterStatus("defeat");
+          setResultCard({
+            title: "Defeat",
+            message: "Your party has fallen in the haunted hall.",
+            cta: "Retry (Soon)",
+          });
+          setSceneStage("result");
         }
         return enemyTurn.nextState;
       }
@@ -209,6 +224,12 @@ export function GameRuntime({ initialGameState }: GameRuntimeProps) {
     }
     if (willDefeatEnemy) {
       setEncounterStatus("victory");
+      setResultCard({
+        title: "Victory",
+        message: "The Restless Spirit fades from the hall.",
+        cta: "Continue (Soon)",
+      });
+      setSceneStage("result");
       pushNarration(
         `${activePlayer.name} ${outcome === "critical" ? "critically strikes" : outcome === "strong" ? "lands a strong hit on" : "strikes"} ${target.name} for ${damage}.`,
       );
@@ -224,6 +245,57 @@ export function GameRuntime({ initialGameState }: GameRuntimeProps) {
       return;
     }
     pushNarration(`${activePlayer.name} hits for ${damage}.`);
+  }
+
+  function handleBeginExploration() {
+    setSceneStage("choice");
+    pushNarration("Dust swirls in the Entrance Hall. Choose your path.");
+  }
+
+  function handleChoice(choiceId: "staircase" | "doorway" | "callout") {
+    if (sceneStage !== "choice") return;
+
+    if (choiceId === "staircase") {
+      pushNarration("You step toward the staircase. A Restless Spirit emerges.");
+      setSceneStage("combat");
+      return;
+    }
+
+    if (choiceId === "doorway") {
+      pushNarration("You search the doorway and find only cold silence.");
+      setResultCard({
+        title: "A Hollow Discovery",
+        message: "The dark doorway offers only whispers and dust.",
+        cta: "Choose Again",
+      });
+      setSceneStage("result");
+      return;
+    }
+
+    const firstLiving = getFirstLivingPlayerIndex(gameState);
+    if (firstLiving !== null) {
+      setGameState((prev) => {
+        const p = prev.players[firstLiving];
+        if (!p) return prev;
+        const nextHp = clampHp(p.hp - 2);
+        return {
+          ...prev,
+          players: prev.players.map((player, idx) =>
+            idx === firstLiving ? { ...player, hp: nextHp } : player,
+          ),
+        };
+      });
+    }
+    pushNarration(
+      "Your call echoes back. Something answers. The chill bites for 2 HP.",
+    );
+    setSceneStage("combat");
+  }
+
+  function handleResultContinue() {
+    if (encounterStatus !== "active") return;
+    setResultCard(null);
+    setSceneStage("choice");
   }
 
   return (
@@ -245,27 +317,80 @@ export function GameRuntime({ initialGameState }: GameRuntimeProps) {
             !activePlayer ||
             getLivingEnemies(gameState).length === 0 ||
             gameState.phase !== "player" ||
-            encounterStatus !== "active"
+            encounterStatus !== "active" ||
+            sceneStage !== "combat"
           }
         />
 
-        {encounterStatus !== "active" ? (
+        {sceneStage === "intro" ? (
+          <div className="absolute inset-0 z-40 flex items-center justify-center px-4">
+            <div className="w-full max-w-xl rounded-xl border border-violet-700/60 bg-zinc-950/85 p-6 text-center shadow-xl backdrop-blur-sm">
+              <h2 className="text-2xl font-semibold text-violet-100">
+                Entrance Hall
+              </h2>
+              <p className="mt-3 text-sm text-zinc-300">
+                A dying chandelier swings overhead as the haunted house exhales.
+              </p>
+              <button
+                type="button"
+                onClick={handleBeginExploration}
+                className="mt-5 rounded-md border border-violet-500/60 bg-violet-950/40 px-4 py-2 text-sm text-violet-100"
+              >
+                Step Forward
+              </button>
+            </div>
+          </div>
+        ) : null}
+
+        {sceneStage === "choice" ? (
+          <div className="absolute inset-x-0 bottom-24 z-40 flex justify-center px-4 md:bottom-28">
+            <div className="w-full max-w-2xl rounded-xl border border-violet-700/60 bg-zinc-950/85 p-4 shadow-xl backdrop-blur-sm">
+              <h3 className="text-center text-sm font-semibold uppercase tracking-wider text-violet-200">
+                Choose Your Move
+              </h3>
+              <div className="mt-3 grid gap-2 md:grid-cols-3">
+                <button
+                  type="button"
+                  onClick={() => handleChoice("staircase")}
+                  className="rounded-lg border border-violet-600/50 bg-zinc-900/80 px-3 py-3 text-left text-sm text-zinc-100 hover:bg-zinc-800"
+                >
+                  Investigate the staircase
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleChoice("doorway")}
+                  className="rounded-lg border border-violet-600/50 bg-zinc-900/80 px-3 py-3 text-left text-sm text-zinc-100 hover:bg-zinc-800"
+                >
+                  Search the dark doorway
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleChoice("callout")}
+                  className="rounded-lg border border-violet-600/50 bg-zinc-900/80 px-3 py-3 text-left text-sm text-zinc-100 hover:bg-zinc-800"
+                >
+                  Call out into the hall
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
+
+        {sceneStage === "result" && resultCard ? (
           <div className="absolute inset-0 z-40 flex items-center justify-center px-4">
             <div className="w-full max-w-md rounded-xl border border-violet-700/60 bg-zinc-950/85 p-6 text-center shadow-xl backdrop-blur-sm">
               <h2 className="text-2xl font-semibold text-violet-100">
-                {encounterStatus === "victory" ? "Victory" : "Defeat"}
+                {resultCard.title}
               </h2>
               <p className="mt-2 text-sm text-zinc-300">
-                {encounterStatus === "victory"
-                  ? "The Restless Spirit fades from the hall."
-                  : "Your party has fallen in the haunted hall."}
+                {resultCard.message}
               </p>
               <div className="mt-4 flex justify-center gap-2">
                 <button
                   type="button"
+                  onClick={handleResultContinue}
                   className="rounded-md border border-zinc-600 bg-zinc-800 px-4 py-2 text-sm text-zinc-100"
                 >
-                  {encounterStatus === "victory" ? "Continue (Soon)" : "Retry (Soon)"}
+                  {resultCard.cta}
                 </button>
                 <button
                   type="button"
