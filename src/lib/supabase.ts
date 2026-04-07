@@ -4,6 +4,12 @@ let client: SupabaseClient | null = null;
 
 export function getSupabaseClient(): SupabaseClient {
   if (client) return client;
+
+  console.log("ENV CHECK (supabase init):", {
+    hasUrl: !!process.env.NEXT_PUBLIC_SUPABASE_URL,
+    hasAnonKey: !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+  });
+
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   if (!supabaseUrl || !supabaseAnonKey) {
@@ -12,5 +18,6 @@ export function getSupabaseClient(): SupabaseClient {
     );
   }
   client = createClient(supabaseUrl, supabaseAnonKey);
+  console.log("SUPABASE: client created (singleton)");
   return client;
 }

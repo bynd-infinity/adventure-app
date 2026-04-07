@@ -11,6 +11,7 @@ import {
   createHostPlayer,
 } from "@/lib/lobby/players";
 import { lobbyStartConditionsMet } from "@/lib/lobby/rules";
+import { getSupabaseClient } from "@/lib/supabase";
 import {
   createSession,
   findSessionByCode,
@@ -28,8 +29,25 @@ export async function createLobbyAction(hostName: string): Promise<
   | { ok: true; sessionId: string; code: string; playerId: string }
 > {
   try {
-    const session = await createSession();
-    const player = await createHostPlayer(session.id, hostName);
+    console.log("ENV CHECK:", {
+      hasUrl: !!process.env.NEXT_PUBLIC_SUPABASE_URL,
+      hasAnonKey: !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+    });
+
+    const supabase = getSupabaseClient();
+
+    const { data: testData, error: testError } = await supabase
+      .from("sessions")
+      .select("*")
+      .limit(1);
+
+    console.log("CONNECTION TEST:", {
+      testData,
+      testError,
+    });
+
+    const session = await createSession(supabase);
+    const player = await createHostPlayer(session.id, hostName, supabase);
     return {
       ok: true,
       sessionId: session.id,
@@ -37,6 +55,10 @@ export async function createLobbyAction(hostName: string): Promise<
       playerId: player.id,
     };
   } catch (e) {
+    console.error("CREATE LOBBY CAUGHT:", e);
+    if (e instanceof Error && e.cause !== undefined) {
+      console.error("CREATE LOBBY CAUSE:", e.cause);
+    }
     return {
       ok: false,
       error: e instanceof Error ? e.message : "Failed to create lobby.",

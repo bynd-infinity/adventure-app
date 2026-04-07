@@ -15,10 +15,10 @@ export function mapPlayerRow(row: PlayerRow): Player {
   return {
     id: row.id,
     name: row.name,
-    class: row.character_class,
+    class: row["class"],
     hp: row.hp,
     isHost: row.is_host,
     turnOrder: row.turn_order,
-    ready: row.ready,
+    ready: row.is_ready,
   };
 }

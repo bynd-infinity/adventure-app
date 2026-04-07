@@ -20,14 +20,19 @@ export async function createHostPlayer(
       name: trimmed,
       is_host: true,
       turn_order: 0,
-      character_class: "",
+      class: "",
       hp: 100,
-      ready: false,
+      is_ready: false,
     })
     .select()
     .single();
 
-  if (error) throw new Error(error.message);
+  console.log("SUPABASE RESULT:", { data, error });
+
+  if (error) {
+    console.error("SUPABASE ERROR:", error);
+    throw error;
+  }
   return mapPlayerRow(data as PlayerRow);
 }
 
@@ -57,9 +62,9 @@ export async function joinSessionAsPlayer(
       name: trimmed,
       is_host: false,
       turn_order: nextTurn,
-      character_class: "",
+      class: "",
       hp: 100,
-      ready: false,
+      is_ready: false,
     })
     .select()
     .single();
@@ -108,7 +113,7 @@ export async function updatePlayerClass(
 
   const { data, error } = await client
     .from("players")
-    .update({ character_class: characterClass })
+    .update({ class: characterClass })
     .eq("id", playerId)
     .select()
     .single();
@@ -124,7 +129,7 @@ export async function setPlayerReady(
 ): Promise<Player> {
   const { data, error } = await client
     .from("players")
-    .update({ ready })
+    .update({ is_ready: ready })
     .eq("id", playerId)
     .select()
     .single();

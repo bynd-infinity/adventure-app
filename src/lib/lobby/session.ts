@@ -18,8 +18,19 @@ export async function createSession(
       .select()
       .single();
 
-    if (error?.code === UNIQUE_VIOLATION) continue;
-    if (error) throw new Error(error.message);
+    console.log("SUPABASE RESULT:", { data, error });
+
+    if (error) {
+      if (error.code === UNIQUE_VIOLATION) {
+        console.log(
+          "SUPABASE: unique lobby code collision, retrying",
+          error.message,
+        );
+        continue;
+      }
+      console.error("SUPABASE ERROR:", error);
+      throw error;
+    }
     return mapSessionRow(data as SessionRow);
   }
   throw new Error("Could not generate a unique lobby code.");

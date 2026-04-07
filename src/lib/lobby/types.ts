@@ -10,9 +10,10 @@ export type PlayerRow = {
   id: string;
   session_id: string;
   name: string;
-  character_class: string;
+  "class": string;
   hp: number;
   is_host: boolean;
-  ready: boolean;
+  is_ready: boolean;
   turn_order: number;
+  created_at?: string;
 };
