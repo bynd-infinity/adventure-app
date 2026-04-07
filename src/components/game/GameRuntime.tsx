@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 import type { Enemy, GameState } from "@/types";
 import { ActionBar } from "./ActionBar";
@@ -14,9 +15,9 @@ type GameRuntimeProps = {
 
 type EncounterStatus = "active" | "victory" | "defeat";
 type SceneStageMode = "intro" | "choice" | "combat" | "result";
-type ResultNext = "choice" | "room_select" | "stay";
+type ResultNext = "choice" | "room_select" | "stay" | "run_complete";
 type ChoiceMode = "room_action" | "room_select";
-type RoomId = "entrance_hall" | "library" | "dining_room";
+type RoomId = "entrance_hall" | "library" | "dining_room" | "boss_room";
 
 type ResultCard = {
   title: string;
@@ -32,24 +33,28 @@ const ROOM_LABELS: Record<RoomId, string> = {
   entrance_hall: "Entrance Hall",
   library: "Library",
   dining_room: "Dining Room",
+  boss_room: "Boss Room",
 };
 
 const ROOM_BACKGROUNDS: Record<RoomId, string> = {
   entrance_hall: "/backgrounds/entrance-hall.png",
   library: "/backgrounds/library.png",
   dining_room: "/backgrounds/dining-room.png",
+  boss_room: "/backgrounds/boss-room.png",
 };
 
 const ROOM_INTRO: Record<RoomId, string> = {
   entrance_hall: "A dying chandelier swings overhead as the haunted house exhales.",
   library: "Tall shelves loom in silence while pages whisper in the dark.",
   dining_room: "A long table waits beneath tarnished silver and dust-choked air.",
+  boss_room: "At the heart of the house, chains rattle around an ancient altar.",
 };
 
 const ROOM_ENEMY: Record<RoomId, Enemy> = {
   entrance_hall: { id: "enemy-1", name: "Restless Spirit", hp: 12 },
   library: { id: "enemy-1", name: "Whispering Archivist", hp: 13 },
   dining_room: { id: "enemy-1", name: "Ravenous Butler", hp: 14 },
+  boss_room: { id: "boss-1", name: "Bound Spirit", hp: 24 },
 };
 
 function rollDie(sides: number): number {
@@ -112,6 +117,7 @@ function resolveAttackDamage(roll: number, critBonus: number, strongBonus: numbe
 }
 
 export function GameRuntime({ initialGameState }: GameRuntimeProps) {
+  const router = useRouter();
   const [gameState, setGameState] = useState<GameState>(initialGameState);
   const [encounterStatus, setEncounterStatus] = useState<EncounterStatus>("active");
   const [sceneStage, setSceneStage] = useState<SceneStageMode>("intro");
@@ -141,22 +147,19 @@ export function GameRuntime({ initialGameState }: GameRuntimeProps) {
       };
     }
 
-    const roomSet = new Set<RoomId>([...completedRooms, room]);
-    const bothWingsDone = roomSet.has("library") && roomSet.has("dining_room");
-
-    if (bothWingsDone) {
+    if (room === "boss_room") {
       return {
-        title: "Wings Cleared",
-        message: "Both wings are explored. A deeper chamber awaits next.",
-        cta: "Continue (Soon)",
-        next: "stay",
+        title: "Run Complete",
+        message: "The Bound Spirit is broken. The haunted house falls silent.",
+        cta: "Return to Menu",
+        next: "run_complete",
       };
     }
 
     return {
       title: `${ROOM_LABELS[room]} Cleared`,
-      message: "You can press onward into another haunted wing.",
-      cta: "Choose Next Room",
+      message: "You can press onward through the haunted estate.",
+      cta: "Continue",
       next: "room_select",
     };
   }
@@ -433,6 +436,31 @@ export function GameRuntime({ initialGameState }: GameRuntimeProps) {
       return;
     }
 
+    if (currentRoom === "boss_room") {
+      if (choiceId === "seal") {
+        pushNarration("You break the seal. The Bound Spirit tears free.");
+        beginRoomCombat("boss_room");
+        return;
+      }
+      if (choiceId === "script") {
+        pushNarration("The warding script is incomplete and fails to bind the spirit.");
+        setResultCard({
+          title: "Shattered Wards",
+          message: "Ancient ink flakes away. The confrontation is inevitable.",
+          cta: "Face the Spirit",
+          next: "choice",
+        });
+        setSceneStage("result");
+        return;
+      }
+      applyRiskPenaltyThenCombat(
+        "boss_room",
+        3,
+        "You touch the spirit chain. Cold fire burns you for 3 HP.",
+      );
+      return;
+    }
+
     if (choiceId === "table") {
       pushNarration("You disturb the banquet. The Ravenous Butler lunges.");
       beginRoomCombat("dining_room");
@@ -474,6 +502,21 @@ export function GameRuntime({ initialGameState }: GameRuntimeProps) {
       setSceneStage("choice");
       return;
     }
+
+    if (resultCard.next === "run_complete") {
+      router.push("/");
+    }
+  }
+
+  function handlePlayAgain() {
+    setCurrentRoom("entrance_hall");
+    setChoiceMode("room_action");
+    setSceneStage("intro");
+    setEncounterStatus("active");
+    setCompletedRooms([]);
+    setResultCard(null);
+    setGameState(initialGameState);
+    setNarrationLog([ROOM_INTRO.entrance_hall]);
   }
 
   const showCombatLayer = sceneStage === "combat";
@@ -495,16 +538,40 @@ export function GameRuntime({ initialGameState }: GameRuntimeProps) {
             { id: "nook", label: "Open the hidden reading nook" },
             { id: "ledger", label: "Read the forbidden ledger" },
           ]
-        : [
+      : currentRoom === "dining_room"
+        ? [
             { id: "table", label: "Inspect the banquet table" },
             { id: "cabinet", label: "Check the side cabinet" },
             { id: "bell", label: "Ring the silver bell" },
+          ]
+        : [
+            { id: "seal", label: "Break the binding seal" },
+            { id: "script", label: "Read the warding script" },
+            { id: "chain", label: "Touch the spirit chain" },
           ];
+
+  const wingCleared =
+    completedRooms.includes("library") || completedRooms.includes("dining_room");
+  const availableRoomOptions: { id: RoomId; label: string }[] = [];
+  if (!completedRooms.includes("library")) {
+    availableRoomOptions.push({ id: "library", label: "Go to Library" });
+  }
+  if (!completedRooms.includes("dining_room")) {
+    availableRoomOptions.push({ id: "dining_room", label: "Go to Dining Room" });
+  }
+  if (wingCleared) {
+    availableRoomOptions.push({ id: "boss_room", label: "Enter Boss Room" });
+  }
+
+  const backgroundStyle =
+    currentRoom === "boss_room"
+      ? "url('/backgrounds/boss-room.png'), url('/backgrounds/entrance-hall.png')"
+      : `url('${ROOM_BACKGROUNDS[currentRoom]}')`;
 
   return (
     <div
       className="relative flex min-h-screen flex-1 flex-col bg-zinc-950 bg-cover bg-center bg-no-repeat text-zinc-100"
-      style={{ backgroundImage: `url('${ROOM_BACKGROUNDS[currentRoom]}')` }}
+      style={{ backgroundImage: backgroundStyle }}
     >
       <div className="pointer-events-none absolute inset-0 bg-black/40" aria-hidden />
       <div className="relative z-10 flex min-h-screen flex-1 flex-col pb-40">
@@ -568,20 +635,16 @@ export function GameRuntime({ initialGameState }: GameRuntimeProps) {
 
               {choiceMode === "room_select" ? (
                 <div className="mt-3 grid gap-2 md:grid-cols-2">
-                  <button
-                    type="button"
-                    onClick={() => handleRoomSelectChoice("library")}
-                    className="rounded-lg border border-violet-600/50 bg-zinc-900/80 px-3 py-3 text-left text-sm text-zinc-100 hover:bg-zinc-800"
-                  >
-                    Go to Library
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleRoomSelectChoice("dining_room")}
-                    className="rounded-lg border border-violet-600/50 bg-zinc-900/80 px-3 py-3 text-left text-sm text-zinc-100 hover:bg-zinc-800"
-                  >
-                    Go to Dining Room
-                  </button>
+                  {availableRoomOptions.map((option) => (
+                    <button
+                      key={option.id}
+                      type="button"
+                      onClick={() => handleRoomSelectChoice(option.id)}
+                      className="rounded-lg border border-violet-600/50 bg-zinc-900/80 px-3 py-3 text-left text-sm text-zinc-100 hover:bg-zinc-800"
+                    >
+                      {option.label}
+                    </button>
+                  ))}
                 </div>
               ) : (
                 <div className="mt-3 grid gap-2 md:grid-cols-3">
@@ -607,19 +670,40 @@ export function GameRuntime({ initialGameState }: GameRuntimeProps) {
               <h2 className="text-2xl font-semibold text-violet-100">{resultCard.title}</h2>
               <p className="mt-2 text-sm text-zinc-300">{resultCard.message}</p>
               <div className="mt-4 flex justify-center gap-2">
-                <button
-                  type="button"
-                  onClick={handleResultContinue}
-                  className="rounded-md border border-zinc-600 bg-zinc-800 px-4 py-2 text-sm text-zinc-100"
-                >
-                  {resultCard.cta}
-                </button>
-                <button
-                  type="button"
-                  className="rounded-md border border-zinc-600 bg-zinc-900 px-4 py-2 text-sm text-zinc-300"
-                >
-                  Return (Soon)
-                </button>
+                {resultCard.next === "run_complete" ? (
+                  <>
+                    <button
+                      type="button"
+                      onClick={handleResultContinue}
+                      className="rounded-md border border-zinc-600 bg-zinc-800 px-4 py-2 text-sm text-zinc-100"
+                    >
+                      Return to Menu
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handlePlayAgain}
+                      className="rounded-md border border-zinc-600 bg-zinc-900 px-4 py-2 text-sm text-zinc-300"
+                    >
+                      Play Again
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      onClick={handleResultContinue}
+                      className="rounded-md border border-zinc-600 bg-zinc-800 px-4 py-2 text-sm text-zinc-100"
+                    >
+                      {resultCard.cta}
+                    </button>
+                    <button
+                      type="button"
+                      className="rounded-md border border-zinc-600 bg-zinc-900 px-4 py-2 text-sm text-zinc-300"
+                    >
+                      Return (Soon)
+                    </button>
+                  </>
+                )}
               </div>
             </div>
           </div>
