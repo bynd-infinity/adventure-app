@@ -3,7 +3,7 @@ import Link from "next/link";
 export default function Home() {
   return (
     <div
-      className="relative min-h-screen bg-cover bg-center bg-no-repeat"
+      className="relative min-h-screen bg-[length:auto_100%] bg-top bg-no-repeat md:bg-cover md:bg-center"
       style={{
         backgroundImage: "url('/backgrounds/title-screen.png')",
       }}
