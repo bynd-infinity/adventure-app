@@ -2,7 +2,28 @@ import type { Enemy } from "@/types";
 
 type EnemyPanelProps = {
   enemies: Enemy[];
+  /** Increments when a new encounter begins; drives one-shot entrance animations. */
+  encounterAnimGeneration: number;
 };
+
+function enemyEntranceClasses(
+  enemy: Enemy,
+  emphasis: "primary" | "secondary" | "boss",
+): string {
+  if (emphasis === "boss" || enemy.behavior === "boss") {
+    return "enemy-entrance enemy-entrance--boss";
+  }
+  if (enemy.traitTag === "spectral") {
+    return "enemy-entrance enemy-entrance--spectral";
+  }
+  if (enemy.behavior === "aggressive") {
+    return "enemy-entrance enemy-entrance--aggressive";
+  }
+  if (enemy.behavior === "defensive") {
+    return "enemy-entrance enemy-entrance--defensive";
+  }
+  return "enemy-entrance enemy-entrance--default";
+}
 
 function EnemyCard({
   enemy,
@@ -19,11 +40,15 @@ function EnemyCard({
         ? "border-rose-400/70 shadow-[0_0_80px_rgba(244,63,94,0.25)]"
         : "border-rose-500/50 shadow-[0_0_40px_rgba(244,63,94,0.15)]";
 
+  const entrance = enemyEntranceClasses(enemy, emphasis);
+  const stagger =
+    emphasis === "secondary" ? " enemy-entrance--stagger" : "";
+
   return (
     <div
       className={`w-full rounded-2xl border bg-rose-950/30 p-6 text-center backdrop-blur-sm md:p-8 ${border} ${
         isBoss ? "ring-2 ring-amber-500/40" : ""
-      }`}
+      } ${entrance}${stagger}`}
     >
       <p className="text-xs font-semibold uppercase tracking-[0.24em] text-rose-300">
         {isBoss ? "Final confrontation" : emphasis === "primary" ? "Encounter target" : "Also present"}
@@ -52,7 +77,7 @@ function EnemyCard({
   );
 }
 
-export function EnemyPanel({ enemies }: EnemyPanelProps) {
+export function EnemyPanel({ enemies, encounterAnimGeneration }: EnemyPanelProps) {
   const living = enemies.filter((e) => e.hp > 0);
   if (living.length === 0) {
     return null;
@@ -62,21 +87,35 @@ export function EnemyPanel({ enemies }: EnemyPanelProps) {
   const primary = living[0]!;
   const secondary = living[1];
 
+  const gen = encounterAnimGeneration;
+
   if (living.length === 1) {
     return (
       <section className="flex w-full max-w-xl items-center justify-center px-4">
-        <EnemyCard enemy={primary} emphasis={hasBoss ? "boss" : "primary"} />
+        <EnemyCard
+          key={`${primary.id}-${gen}`}
+          enemy={primary}
+          emphasis={hasBoss ? "boss" : "primary"}
+        />
       </section>
     );
   }
 
   return (
     <section className="flex w-full max-w-4xl flex-col items-stretch justify-center gap-4 px-4 md:flex-row md:items-start">
-      <div className="flex-1 min-w-0">
-        <EnemyCard enemy={primary} emphasis="primary" />
+      <div className="min-w-0 flex-1">
+        <EnemyCard
+          key={`${primary.id}-${gen}`}
+          enemy={primary}
+          emphasis="primary"
+        />
       </div>
-      <div className="flex-1 min-w-0 md:pt-6">
-        <EnemyCard enemy={secondary!} emphasis="secondary" />
+      <div className="min-w-0 flex-1 md:pt-6">
+        <EnemyCard
+          key={`${secondary!.id}-${gen}`}
+          enemy={secondary!}
+          emphasis="secondary"
+        />
       </div>
     </section>
   );

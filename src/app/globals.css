@@ -24,3 +24,118 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* Combat: old-school dramatic enemy entrance (slide + fade; type-specific feel). */
+.enemy-entrance {
+  animation-fill-mode: both;
+}
+
+.enemy-entrance--spectral {
+  animation: enemy-enter-spectral 1.65s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.enemy-entrance--aggressive {
+  animation: enemy-enter-aggressive 1.2s cubic-bezier(0.17, 0.67, 0.29, 0.99) both;
+}
+
+.enemy-entrance--defensive {
+  animation: enemy-enter-defensive 1.4s cubic-bezier(0.25, 0.46, 0.45, 0.94) both;
+}
+
+.enemy-entrance--default {
+  animation: enemy-enter-default 1.35s cubic-bezier(0.25, 0.46, 0.45, 0.94) both;
+}
+
+.enemy-entrance--boss {
+  animation: enemy-enter-boss 2.45s cubic-bezier(0.13, 1, 0.32, 1) both;
+}
+
+.enemy-entrance--stagger {
+  animation-delay: 0.48s;
+}
+
+@keyframes enemy-enter-spectral {
+  0% {
+    opacity: 0;
+    transform: translateX(22vw) translateY(8px);
+    filter: blur(3px);
+  }
+  55% {
+    opacity: 0.7;
+    filter: blur(1px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0) translateY(0);
+    filter: blur(0);
+  }
+}
+
+@keyframes enemy-enter-aggressive {
+  0% {
+    opacity: 0;
+    transform: translateX(52vw) scale(0.94);
+  }
+  50% {
+    opacity: 1;
+    transform: translateX(-5vw) scale(1.03);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
+
+@keyframes enemy-enter-defensive {
+  0% {
+    opacity: 0;
+    transform: translateX(28vw);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes enemy-enter-default {
+  0% {
+    opacity: 0;
+    transform: translateX(36vw);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes enemy-enter-boss {
+  0% {
+    opacity: 0;
+    transform: translateX(46vw) scale(1.14);
+    filter: brightness(1.75) contrast(1.05);
+  }
+  30% {
+    opacity: 0.45;
+    filter: brightness(1.25);
+  }
+  62% {
+    opacity: 0.92;
+    transform: translateX(-3vw) scale(1.03);
+    filter: brightness(1);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+    filter: brightness(1) contrast(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .enemy-entrance {
+    animation: none !important;
+    animation-delay: 0s !important;
+    opacity: 1 !important;
+    transform: none !important;
+    filter: none !important;
+  }
+}

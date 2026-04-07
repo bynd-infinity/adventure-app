@@ -291,6 +291,8 @@ export function GameRuntime({ initialGameState }: GameRuntimeProps) {
     title: string;
     message: string;
   } | null>(null);
+  /** Bumps when a new combat encounter starts so entrance animations run once. */
+  const [encounterAnimGeneration, setEncounterAnimGeneration] = useState(0);
 
   const discoveredJournalEntries = useMemo(
     () =>
@@ -455,6 +457,7 @@ export function GameRuntime({ initialGameState }: GameRuntimeProps) {
       setStoryCombatResumeSceneId(null);
     }
     const enemies = generateEncounter(room);
+    setEncounterAnimGeneration((g) => g + 1);
     setSceneStage("combat");
     setEncounterStatus("active");
     setGameState((prev) => ({
@@ -1068,6 +1071,7 @@ export function GameRuntime({ initialGameState }: GameRuntimeProps) {
     setJournalToast(null);
     prevJournalUnlockCountRef.current = 0;
     setResultCard(null);
+    setEncounterAnimGeneration(0);
     setGameState(initLocalState(initialGameState));
     setNarrationLog(() => {
       const intro = getStoryScene(
@@ -1195,8 +1199,11 @@ export function GameRuntime({ initialGameState }: GameRuntimeProps) {
 
         {showCombatLayer ? (
           <>
-            <main className="flex flex-1 items-center justify-center">
-              <EnemyPanel enemies={gameState.enemies} />
+            <main className="flex flex-1 items-center justify-center overflow-x-hidden">
+              <EnemyPanel
+                enemies={gameState.enemies}
+                encounterAnimGeneration={encounterAnimGeneration}
+              />
             </main>
             <SceneStage
               narrationLog={narrationLog}
