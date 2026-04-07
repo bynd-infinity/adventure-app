@@ -15,7 +15,7 @@ export function ActionBar({ onAttack, attackDisabled = false }: ActionBarProps) 
             type="button"
             onClick={label === "Attack" ? onAttack : undefined}
             disabled={label !== "Attack" || attackDisabled}
-            className="rounded-lg border border-zinc-600 bg-zinc-800/90 px-5 py-2 text-sm font-medium text-zinc-200 hover:bg-zinc-700"
+            className="rounded-lg border border-zinc-600 bg-zinc-800/90 px-5 py-2 text-sm font-medium text-zinc-200 hover:bg-zinc-700 disabled:cursor-not-allowed disabled:opacity-45"
           >
             {label}
           </button>
