@@ -1,7 +1,8 @@
 import type { Enemy, EnemyBehavior, EnemyTraitTag } from "@/types";
 import { ENEMY_SPRITE_BY_TEMPLATE } from "@/config/campaignAssets";
 
-/** Template definitions — not full instances; use spawn helpers for runtime enemies. */
+/** Template definitions — not full instances; use spawn helpers for runtime enemies.
+ * Enemy attack **flavor text** (per outcome) lives in `enemyAttackNarration.ts`. */
 export type EnemyTemplate = {
   id: string;
   name: string;

@@ -70,6 +70,7 @@ import {
   rollWithStatAndMode,
   type OutcomeTier,
 } from "@/lib/game/statRolls";
+import { formatEnemyAttackLine } from "@/lib/game/enemyAttackNarration";
 import type { StoryResultNext } from "@/lib/story/types";
 import { ActionBar } from "./ActionBar";
 import { JournalPanel } from "./JournalPanel";
@@ -1031,17 +1032,18 @@ export function GameRuntime({ initialGameState, sessionId }: GameRuntimeProps) {
 
       const firstLivingAfter = nextPlayers.findIndex((p) => p.hp > 0);
 
-      const outcomeText =
-        outcome === "miss"
-          ? "misses"
-          : outcome === "critical"
-            ? `lands a brutal strike for ${reduced}`
-            : `hits for ${reduced}`;
+      const attackCore = formatEnemyAttackLine(
+        enemy.templateId,
+        outcome,
+        enemy.name,
+        target.name,
+        reduced,
+      );
 
       const defeatedText = nextHp === 0 ? ` ${target.name} collapses.` : "";
 
       enemyNarrations.push(
-        `${enemy.name} rolls ${rollNote} and ${outcomeText} ${target.name}.${defeatedText}`,
+        `${enemy.name} rolls ${rollNote}. ${attackCore}${defeatedText}`,
       );
 
       current = {
@@ -1238,12 +1240,12 @@ export function GameRuntime({ initialGameState, sessionId }: GameRuntimeProps) {
     const enemyTurn = resolveAllEnemyTurns(preEnemyState);
     stateAfterPlayerAttack = enemyTurn.nextState;
     const primaryEnemyLine = enemyTurn.enemyNarrations[0];
-    if (primaryEnemyLine?.includes("hits") || primaryEnemyLine?.includes("brutal")) {
-      const damaged =
-        stateAfterPlayerAttack.players.find((p, i) => {
-          const beforeHp = preEnemyState.players[i]?.hp ?? p.hp;
-          return p.hp < beforeHp;
-        })?.id ?? null;
+    const damaged =
+      stateAfterPlayerAttack.players.find((p, i) => {
+        const beforeHp = preEnemyState.players[i]?.hp ?? p.hp;
+        return p.hp < beforeHp;
+      })?.id ?? null;
+    if (damaged) {
       setImpactPlayerId(damaged);
       triggerPulse("damage");
       triggerShake();

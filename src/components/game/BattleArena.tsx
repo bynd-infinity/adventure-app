@@ -102,10 +102,10 @@ export function BattleArena({
 
         <div className="flex min-h-0 flex-1 flex-col pt-11">
           <div className="flex min-h-0 shrink-0 flex-col px-2 pt-1 md:px-4">
-            <p className="mb-1 max-w-[12rem] self-end text-[9px] font-semibold uppercase tracking-[0.28em] text-rose-300/80">
+            <p className="mb-1 w-full text-center text-[9px] font-semibold uppercase tracking-[0.28em] text-rose-300/80">
               Hostiles
             </p>
-            <div className="flex min-h-[38%] items-start justify-end">
+            <div className="flex min-h-[38%] w-full items-start justify-center">
               <EnemyPanel
                 enemies={enemies}
                 encounterAnimGeneration={encounterAnimGeneration}
@@ -117,10 +117,10 @@ export function BattleArena({
           </div>
 
           <div className="flex min-h-0 flex-1 flex-col justify-end pb-1">
-            <p className="mb-1 px-3 text-[9px] font-semibold uppercase tracking-[0.28em] text-amber-200/75 md:px-6">
+            <p className="mb-1 w-full px-3 text-center text-[9px] font-semibold uppercase tracking-[0.28em] text-amber-200/75 md:px-6">
               Party
             </p>
-            <div className="flex flex-wrap items-end justify-start gap-2 px-3 pb-2 md:gap-3 md:px-6">
+            <div className="flex flex-wrap items-end justify-center gap-2 px-3 pb-2 md:gap-3 md:px-6">
               {livingPlayers.map((p) => {
                 const portrait = characterPortraitSrc(p.class);
                 const strikeArt = characterStrikeSrc(p.class);

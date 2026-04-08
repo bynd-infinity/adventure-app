@@ -152,7 +152,7 @@ export function EnemyPanel({
       <section
         className={
           arena
-            ? "flex w-full max-w-md items-start justify-end px-2"
+            ? "mx-auto flex w-full max-w-md items-start justify-center px-2"
             : "flex w-full max-w-xl items-center justify-center px-4"
         }
       >
@@ -171,7 +171,7 @@ export function EnemyPanel({
     <section
       className={
         arena
-          ? "flex w-full max-w-2xl flex-row items-start justify-end gap-2 px-2 md:gap-3"
+          ? "mx-auto flex w-full max-w-xl flex-row items-start justify-center gap-3 px-2 md:max-w-2xl md:gap-4"
           : "flex w-full max-w-4xl flex-col items-stretch justify-center gap-4 px-4 md:flex-row md:items-start"
       }
     >
