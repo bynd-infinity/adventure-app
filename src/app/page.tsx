@@ -18,8 +18,9 @@ export default function Home() {
             <p className="campaign-subtitle mt-2 text-sm text-violet-200/90 md:text-base">
               The Ledger of Blackglass House
             </p>
-            <p className="mt-3 text-lg text-zinc-300 md:text-xl">
-              Online Party Adventure
+            <p className="mt-3 max-w-md text-lg leading-snug text-zinc-300 md:text-xl">
+              A contract haunts this estate: ledgers, staged names, and one room where
+              the binding is settled.
             </p>
           </div>
           <div className="flex w-full max-w-sm flex-col gap-3">

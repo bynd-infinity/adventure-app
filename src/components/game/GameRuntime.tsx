@@ -193,7 +193,8 @@ function canClearRoomAfterCombat(p: RoomPacingState, room: RoomId): boolean {
 
 const COMBAT_WIN_MID_ROOM: ResultCard = {
   title: "Threat Broken",
-  message: "The immediate threat is down. The room still holds answers.",
+  message:
+    "The hostile is down. Whatever this room was hiding, you can still dig it out.",
   cta: "Return to Room",
   next: "explore_more",
 };
@@ -211,17 +212,17 @@ const CAMPAIGN_HOOKS = [
   {
     id: "hook_debt_collector",
     title: "Debt Collector",
-    text: "Recover a missing ledger page before dawn and settle the claim.",
+    text: "A creditor's lien followed you here. Recover the torn page that proves what is owed before the house collects in its own currency.",
   },
   {
     id: "hook_missing_heir",
     title: "Missing Heir",
-    text: "Find the heir who entered this house and never came out.",
+    text: "Someone with a name worth stealing walked in and never signed out. Find whether they left a trail—or only a slot on the ledger.",
   },
   {
     id: "hook_broken_oath",
     title: "Broken Oath",
-    text: "Your family seal appears in this registry. Confirm why.",
+    text: "Your family's seal is already inked beside names that should not know you. Learn who traded on your line—and what they promised in your stead.",
   },
 ] as const;
 
@@ -536,7 +537,8 @@ export function GameRuntime({
     if (room === "entrance_hall") {
       return {
         title: "Entrance Cleared",
-        message: "The hall gives you passage. Choose a wing.",
+        message:
+          "You have read the hall for what it is: a foyer that teaches patience. Deeper wings are open when you are ready.",
         cta: "Leave Room",
         next: "room_select",
       };
@@ -546,9 +548,37 @@ export function GameRuntime({
       return bossOutcomeCardFromFlags(storyFlags);
     }
 
+    const wingCopy: Record<
+      Exclude<RoomId, "entrance_hall" | "boss_room">,
+      { title: string; message: string }
+    > = {
+      registry_gallery: {
+        title: "Registry Cleared",
+        message:
+          "Tonight's signatures and older hands no longer disagree in secret. You know how the guest list was staged.",
+      },
+      library: {
+        title: "Library Cleared",
+        message:
+          "The index bent under scrutiny. Whatever Blackglass files about people, you have seen how it sorts them.",
+      },
+      servants_corridor: {
+        title: "Service Routes Mapped",
+        message:
+          "Back-hall tags and runners' lines are plain. Your party was on the board before you arrived.",
+      },
+      dining_room: {
+        title: "Table Read",
+        message:
+          "Rank, course, and chair were never about supper. The room's order told you who this house serves first.",
+      },
+    };
+    const copy = wingCopy[room as keyof typeof wingCopy];
     return {
-      title: `${ROOM_LABELS[room]} Cleared`,
-      message: "You can press onward through the haunted estate.",
+      title: copy?.title ?? `${ROOM_LABELS[room]} Cleared`,
+      message:
+        copy?.message ??
+        "You leave this wing with more truth than you carried in.",
       cta: "Leave Room",
       next: "room_select",
     };
@@ -1019,7 +1049,8 @@ export function GameRuntime({
             markRoomComplete: "entrance_hall",
             completionCard: {
               title: "A Hollow Discovery",
-              message: "The hall yields no more. Another room is waiting.",
+              message:
+                "The entrance has nothing left to teach you tonight. The wings are where the contract gets specific.",
               cta: "Leave Room",
               next: "room_select",
             },
@@ -1450,12 +1481,12 @@ export function GameRuntime({
         setStoryFlags((prev) => ({ ...prev, boss_seal_path: true }));
         pushNarration(
           hook === "hook_debt_collector"
-            ? "You invoke the claim and break the seal. The spirit answers at once."
+            ? "You cite the lien like a warrant and spoil the seal. Cold runs the chains; something rises to audit the debt."
             : hook === "hook_missing_heir"
-              ? "You call the heir's name and break the seal. The spirit answers at once."
+              ? "You call the name the house tried to file as missing. The seal splits; the ring pulls air as if answering a step that never left."
               : hook === "hook_broken_oath"
-                ? "You reject the family wording and break the seal. The spirit answers at once."
-                : "You break the seal. The spirit answers at once.",
+                ? "You strike your own seal through theirs. The ward cracks along your family line; the binding answers with recognition and spite."
+                : "The seal breaks. Cold runs the chains as something rises to meet you.",
         );
         beginRoomCombat("boss_room");
         return;
@@ -2176,8 +2207,8 @@ export function GameRuntime({
               ) : null}
               {showExplorationPacingHint ? (
                 <p className="mt-3 text-center text-[11px] leading-relaxed text-zinc-500">
-                  The space still tests you—use more than one kind of action, and give
-                  the room time before you go. Combat here must be finished first.
+                  Work the room: use more than one kind of action and let the place
+                  answer before you leave. If you started a fight here, finish it first.
                 </p>
               ) : null}
               {canLeaveExploredRoom ? (

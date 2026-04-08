@@ -17,7 +17,7 @@ const GENERIC: LineTable = {
 /** Template ids must match `ENEMY_TEMPLATES` / `Enemy.templateId`. */
 export const ENEMY_ATTACK_LINES: Record<string, LineTable> = {
   restless_spirit: {
-    miss: "Chill claws at empty air—{target} is barely out of reach.",
+    miss: "Chill claws at empty air; {target} is barely out of reach.",
     hit: "Cold threads through {target} for {damage}.",
     strong: "A shriek funnels into {target} for {damage}.",
     critical: "The spirit unravels across {target}'s nerves for {damage}.",
@@ -25,7 +25,7 @@ export const ENEMY_ATTACK_LINES: Record<string, LineTable> = {
   cursed_doll: {
     miss: "Porcelain fingers snap shut on nothing near {target}.",
     hit: "The doll drags a jagged edge across {target} for {damage}.",
-    strong: "It throws its weight—porcelain and spite—into {target} for {damage}.",
+    strong: "It throws porcelain and spite into {target} for {damage}.",
     critical: "Something inside the doll pops; {target} takes {damage} from the burst.",
   },
   shadow_figure: {
@@ -41,13 +41,13 @@ export const ENEMY_ATTACK_LINES: Record<string, LineTable> = {
     critical: "The gilt frame rings; {target} buckles under the stare for {damage}.",
   },
   service_lurker: {
-    miss: "A tray-clatter feint—{target} slips the real bite.",
+    miss: "A tray-clatter feint; {target} slips the real bite.",
     hit: "Back-hall muscle catches {target} for {damage}.",
-    strong: "It closes from the servant angle—fast, mean—for {damage} to {target}.",
+    strong: "It closes from the servant angle, fast and mean, for {damage} to {target}.",
     critical: "Service blades flash once; {target} eats {damage} before the echo fades.",
   },
   possessed_armor: {
-    miss: "Steel whistles past {target}—empty gauntlets, bad timing.",
+    miss: "Steel whistles past {target}: empty gauntlets, bad timing.",
     hit: "The harness jerks; a jointed blow catches {target} for {damage}.",
     strong: "Full plate momentum crushes into {target} for {damage}.",
     critical: "The cuirass slams; {target} takes {damage} through helm and bone-rattle.",
@@ -56,7 +56,7 @@ export const ENEMY_ATTACK_LINES: Record<string, LineTable> = {
     miss: "The binding snaps at air; {target} is still outside the clause.",
     hit: "Contract-cold nails {target} for {damage}.",
     strong: "The seal flares; ink-weight slams {target} for {damage}.",
-    critical: "The house speaks through it—{target} pays {damage} on the ledger.",
+    critical: "The house speaks through the spirit; {target} pays {damage} on the ledger.",
   },
 };
 

@@ -1,10 +1,7 @@
 import { metaVillainEffects } from "@/config/story/hauntedHouse";
 import type { RoomId } from "@/lib/story/rooms";
 import type { StoryEffect } from "@/lib/story/types";
-import {
-  explorationTierLead,
-  type OutcomeTier,
-} from "@/lib/game/statRolls";
+import type { OutcomeTier } from "@/lib/game/statRolls";
 
 export type ExplorationActionKind = "search" | "inspect" | "listen";
 
@@ -44,8 +41,9 @@ export type ExplorationResolveOutput = {
   effects: StoryEffect[];
 };
 
-function line(tier: OutcomeTier, detail: string, rs: string): string {
-  return `${explorationTierLead(tier)} ${detail}${rs}`;
+/** Outcome body + roll suffix only; tier is already reflected in `detail` and outcome title. */
+function line(_tier: OutcomeTier, detail: string, rs: string): string {
+  return `${detail}${rs}`;
 }
 
 /*
@@ -276,7 +274,7 @@ function resolveEntrance(
       outcomeMessage: line(
         tier,
         flags.entrance_listen_tuned
-          ? "You half-expected the answer—still, the chill bites, but you roll with it."
+          ? "You half-expected an answer. The chill still bites, but you roll with it."
           : "Something rushes the stairwell and catches you off balance.",
         rs,
       ),
@@ -318,7 +316,8 @@ function resolveLibrary(
         markRoomComplete: "library",
         completionCard: {
           title: "Library Cleared",
-          message: "You have what this room was willing to give.",
+          message:
+            "The stacks gave up their filing logic. You leave knowing how Blackglass sorts lives into lines.",
           cta: "Leave Room",
           next: "room_select",
         },
@@ -418,7 +417,8 @@ function resolveDining(
         markRoomComplete: "dining_room",
         completionCard: {
           title: "Dining Room Cleared",
-          message: "You have read the room. Move on.",
+          message:
+            "The table's ceremony is plain. You know who this house meant to crown—and who was meant to serve.",
           cta: "Leave Room",
           next: "room_select",
         },
@@ -518,7 +518,8 @@ function resolveRegistry(
         markRoomComplete: "registry_gallery",
         completionCard: {
           title: "Registry Gallery Cleared",
-          message: "You have mapped who was recorded here.",
+          message:
+            "Forged hands and stolen names are marked. The guest book lies, but you know how it was built.",
           cta: "Leave Room",
           next: "room_select",
         },
@@ -598,7 +599,8 @@ function resolveServants(
         markRoomComplete: "servants_corridor",
         completionCard: {
           title: "Servants' Corridor Cleared",
-          message: "You traced the active service routes.",
+          message:
+            "Routes, tags, and runners' lines are mapped. The house scheduled this party; you have the proof in plaster and ink.",
           cta: "Leave Room",
           next: "room_select",
         },

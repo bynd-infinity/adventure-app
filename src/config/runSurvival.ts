@@ -41,8 +41,8 @@ export const CLASS_SIGNATURE_ACTION: Record<
 };
 
 export const CLASS_SIGNATURE_BLURB: Record<PlayerClassId, string> = {
-  Blade: "Cut through noise — your first Search here is steadier.",
-  Spark: "Focused reading — your first Inspect here is steadier.",
-  Shadow: "Quiet read — your first Inspect here is steadier.",
-  Guard: "Held breath — your first Listen here is steadier.",
+  Blade: "Muscle memory steadies your search.",
+  Spark: "Your attention locks to the line of the text.",
+  Shadow: "You read the margin like a second voice.",
+  Guard: "You hold for sound before you commit.",
 };

@@ -63,8 +63,8 @@ export function HomeLobbyForms() {
       >
         <h2 className="text-base font-semibold text-violet-100">Start</h2>
         <p className="text-sm text-zinc-400">
-          Create a session, set difficulty and story hook, then continue in the lobby.
-          Share the code if friends are joining.
+          Open a Blackglass run: pick difficulty and why you came, then ready up in the
+          lobby. Share the code if friends are joining the same ledger.
         </p>
         <label className="flex flex-col gap-1 text-sm text-zinc-400">
           Your name

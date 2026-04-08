@@ -16,10 +16,11 @@ export default function PlayPage() {
           <div className="text-center">
             <h1 className="title-joust phosphor-glow text-4xl md:text-5xl">Country Squire</h1>
             <p className="campaign-subtitle mt-2 text-sm text-violet-200/90 md:text-base">
-              Session Hall
+              Blackglass House
             </p>
-            <p className="mt-3 text-zinc-300">
-              Start a run or join a friend&apos;s session with a code.
+            <p className="mt-3 max-w-lg text-zinc-300">
+              Start a session, set difficulty and hook, then explore. Join with a code
+              if a friend already opened the ledger.
             </p>
           </div>
           <HomeLobbyForms />
