@@ -26,6 +26,8 @@ import {
   type ProcessedStoryEffects,
 } from "@/lib/story/effects";
 import { initialRpgStatsForClass } from "@/lib/game/classStats";
+import { PLAYER_CLASSES, isValidPlayerClass } from "@/lib/lobby/constants";
+import { getStoredPlayerId } from "@/lib/lobby/storage";
 import {
   explorationCanExitRoom,
   resolveExplorationAction,
@@ -49,6 +51,7 @@ import { SceneStage } from "./SceneStage";
 
 type GameRuntimeProps = {
   initialGameState: GameState;
+  sessionId: string;
 };
 
 type PlayerGameState = Player & {
@@ -69,15 +72,25 @@ type LocalGameState = {
 
 type EncounterStatus = "active" | "victory" | "defeat";
 type SceneStageMode =
+  | "prologue"
+  | "class_select"
   | "intro"
   | "action"
   | "outcome"
   | "choice"
+  | "combat_transition"
   | "combat"
   | "result";
 type ResultNext = StoryResultNext;
 type ChoiceMode = "room_action" | "room_select";
 type RoomId = "entrance_hall" | "library" | "dining_room" | "boss_room";
+type DecisionStat = "skill" | "mind" | "guard" | "power";
+type SceneDecision = {
+  id: string;
+  label: string;
+  action: ExplorationActionKind;
+  stat: DecisionStat;
+};
 
 type ResultCard = {
   title: string;
@@ -150,6 +163,118 @@ const ROOM_INTRO: Record<RoomId, string> = {
   library: "Tall shelves loom in silence while pages whisper in the dark.",
   dining_room: "A long table waits beneath tarnished silver and dust-choked air.",
   boss_room: "At the heart of the house, chains rattle around an ancient altar.",
+};
+
+const RUN_INTRO_CARDS = [
+  "Rain needles the windows as your party crosses the threshold. The house seems to notice.",
+  "A faded ledger whispers of debts unpaid, names scratched out, and one final room never left empty.",
+  "You move deeper with one rule in mind: read the house before it reads you.",
+];
+
+const ROOM_SCENE_PROMPTS: Record<RoomId, string[]> = {
+  entrance_hall: [
+    "The chandelier sways without wind. The hall watches you choose your first move.",
+    "Cold pools around the stairs while old wood pops in the walls.",
+    "Your last move shifted the mood; the hall is waiting for your next mistake.",
+  ],
+  library: [
+    "You hear something moving behind the shelves.",
+    "A page turns in the dark where no hand should be.",
+    "The stacks settle, then one aisle goes unnaturally still.",
+  ],
+  dining_room: [
+    "Silver glints across the table, though the candles are dead.",
+    "Something passes through the servants' wall and stops behind you.",
+    "The place settings look newly arranged, as if for your arrival.",
+  ],
+  boss_room: [
+    "Chains hum around the altar. Every sound feels like a warning.",
+    "The ward circle tightens when you step near the stone.",
+    "The room is no longer hiding what waits at its center.",
+  ],
+};
+
+const ROOM_DECISIONS: Record<RoomId, SceneDecision[]> = {
+  entrance_hall: [
+    {
+      id: "check_archway",
+      label: "Check the archway and frame for hidden seams",
+      action: "search",
+      stat: "skill",
+    },
+    {
+      id: "read_markings",
+      label: "Study carvings and marks for meaning",
+      action: "inspect",
+      stat: "mind",
+    },
+    {
+      id: "listen_stairs",
+      label: "Hold still and listen toward the stairs",
+      action: "listen",
+      stat: "guard",
+    },
+  ],
+  library: [
+    {
+      id: "sweep_shelves",
+      label: "Sweep shelves and panels for hidden compartments",
+      action: "search",
+      stat: "skill",
+    },
+    {
+      id: "decode_margins",
+      label: "Decode the repeating symbols in the margins",
+      action: "inspect",
+      stat: "mind",
+    },
+    {
+      id: "track_whisper",
+      label: "Track the whisper without moving your feet",
+      action: "listen",
+      stat: "guard",
+    },
+  ],
+  dining_room: [
+    {
+      id: "check_sideboard",
+      label: "Check sideboard, floor seams, and wall trim",
+      action: "search",
+      stat: "skill",
+    },
+    {
+      id: "read_place_settings",
+      label: "Read the table layout like a ritual",
+      action: "inspect",
+      stat: "mind",
+    },
+    {
+      id: "watch_passages",
+      label: "Listen for movement in hidden service passages",
+      action: "listen",
+      stat: "guard",
+    },
+  ],
+  boss_room: [
+    {
+      id: "check_altar",
+      label: "Check altar edges and chain anchors",
+      action: "search",
+      stat: "skill",
+    },
+    {
+      id: "read_wards",
+      label: "Read the ward script for a flaw",
+      action: "inspect",
+      stat: "mind",
+    },
+    {
+      id: "listen_binding",
+      label: "Listen for where the binding strains",
+      action: "listen",
+      stat: "guard",
+    },
+  ],
 };
 
 function initLocalState(initial: GameState): LocalGameState {
@@ -265,13 +390,13 @@ function rewardNarrationLabel(rewardId: string): string {
   return "Your movements grow faster.";
 }
 
-export function GameRuntime({ initialGameState }: GameRuntimeProps) {
+export function GameRuntime({ initialGameState, sessionId }: GameRuntimeProps) {
   const router = useRouter();
   const [gameState, setGameState] = useState<LocalGameState>(() =>
     initLocalState(initialGameState),
   );
   const [encounterStatus, setEncounterStatus] = useState<EncounterStatus>("active");
-  const [sceneStage, setSceneStage] = useState<SceneStageMode>("intro");
+  const [sceneStage, setSceneStage] = useState<SceneStageMode>("prologue");
   const [choiceMode, setChoiceMode] = useState<ChoiceMode>("room_action");
   const [currentRoom, setCurrentRoom] = useState<RoomId>("entrance_hall");
   const [completedRooms, setCompletedRooms] = useState<RoomId[]>([]);
@@ -303,6 +428,30 @@ export function GameRuntime({ initialGameState }: GameRuntimeProps) {
   } | null>(null);
   /** Bumps when a new combat encounter starts so entrance animations run once. */
   const [encounterAnimGeneration, setEncounterAnimGeneration] = useState(0);
+  const [introCardIndex, setIntroCardIndex] = useState(0);
+  const [draftClasses, setDraftClasses] = useState<Record<string, string>>(() =>
+    Object.fromEntries(initialGameState.players.map((p) => [p.id, p.class ?? ""])),
+  );
+  const [roomSceneBeat, setRoomSceneBeat] = useState<Record<RoomId, number>>({
+    entrance_hall: 0,
+    library: 0,
+    dining_room: 0,
+    boss_room: 0,
+  });
+  const [currentClientPlayerId, setCurrentClientPlayerId] = useState<string | null>(null);
+  const [partyDecisionNote, setPartyDecisionNote] = useState<string | null>(null);
+  const [pendingDecision, setPendingDecision] = useState<{
+    label: string;
+    playerId: string;
+  } | null>(null);
+  const [recentDecisionPlayerId, setRecentDecisionPlayerId] = useState<string | null>(null);
+  const [combatTransitionText, setCombatTransitionText] = useState<string | null>(null);
+  const [impactPulse, setImpactPulse] = useState<"damage" | "clue" | "reward" | "meta" | null>(
+    null,
+  );
+  const [shakeScreen, setShakeScreen] = useState(false);
+  const combatTransitionTimerRef = useRef<number | null>(null);
+  const decisionResolveTimerRef = useRef<number | null>(null);
 
   const discoveredJournalEntries = useMemo(
     () =>
@@ -311,6 +460,10 @@ export function GameRuntime({ initialGameState }: GameRuntimeProps) {
       ),
     [storyFlags],
   );
+
+  useEffect(() => {
+    setCurrentClientPlayerId(getStoredPlayerId(sessionId));
+  }, [sessionId]);
 
   useEffect(() => {
     const n = discoveredJournalEntries.length;
@@ -331,12 +484,35 @@ export function GameRuntime({ initialGameState }: GameRuntimeProps) {
 
   useEffect(() => {
     if (!metaNarration) return;
+    setImpactPulse("meta");
     const t = window.setTimeout(() => setMetaNarration(null), 4200);
     return () => window.clearTimeout(t);
   }, [metaNarration]);
 
+  useEffect(
+    () => () => {
+      if (combatTransitionTimerRef.current !== null) {
+        window.clearTimeout(combatTransitionTimerRef.current);
+      }
+      if (decisionResolveTimerRef.current !== null) {
+        window.clearTimeout(decisionResolveTimerRef.current);
+      }
+    },
+    [],
+  );
+
   function pushNarration(line: string) {
     setNarrationLog((prev) => [line, ...prev].slice(0, 4));
+  }
+
+  function triggerPulse(kind: "damage" | "clue" | "reward" | "meta") {
+    setImpactPulse(kind);
+    window.setTimeout(() => setImpactPulse(null), 320);
+  }
+
+  function triggerShake() {
+    setShakeScreen(true);
+    window.setTimeout(() => setShakeScreen(false), 300);
   }
 
   function markRoomComplete(room: RoomId) {
@@ -374,6 +550,7 @@ export function GameRuntime({ initialGameState }: GameRuntimeProps) {
     targetPlayerId: string,
     nextCard: ResultCard,
   ) {
+    triggerPulse("reward");
     const reward = pickRandomReward();
     setGameState((prev) => {
       const fallbackIndex = getFirstLivingPlayerIndex(prev) ?? 0;
@@ -433,11 +610,14 @@ export function GameRuntime({ initialGameState }: GameRuntimeProps) {
     setSceneStage("intro");
     setEncounterStatus("active");
     setRoomPacing(initialRoomPacing());
+    setRoomSceneBeat((prev) => ({ ...prev, [room]: 0 }));
     setStoryCombatResumeSceneId(null);
     if (room === "entrance_hall") {
       setEntranceStorySceneId(hauntedHouseEntrance.initialSceneId);
     }
     setResultCard(null);
+    setPendingDecision(null);
+    setRecentDecisionPlayerId(null);
     setGameState((prev) => ({
       ...prev,
       scene: room,
@@ -466,17 +646,26 @@ export function GameRuntime({ initialGameState }: GameRuntimeProps) {
     } else if (room !== "entrance_hall") {
       setStoryCombatResumeSceneId(null);
     }
-    const enemies = generateEncounter(room);
-    setEncounterAnimGeneration((g) => g + 1);
-    setSceneStage("combat");
-    setEncounterStatus("active");
-    setGameState((prev) => ({
-      ...prev,
-      scene: room,
-      enemies,
-      phase: "player",
-      turnIndex: getFirstLivingPlayerIndex(prev) ?? 0,
-    }));
+    setCombatTransitionText("Danger closes in...");
+    setSceneStage("combat_transition");
+    triggerShake();
+    if (combatTransitionTimerRef.current !== null) {
+      window.clearTimeout(combatTransitionTimerRef.current);
+    }
+    combatTransitionTimerRef.current = window.setTimeout(() => {
+      const enemies = generateEncounter(room);
+      setEncounterAnimGeneration((g) => g + 1);
+      setSceneStage("combat");
+      setEncounterStatus("active");
+      setCombatTransitionText(null);
+      setGameState((prev) => ({
+        ...prev,
+        scene: room,
+        enemies,
+        phase: "player",
+        turnIndex: getFirstLivingPlayerIndex(prev) ?? 0,
+      }));
+    }, 520);
   }
 
   function applyProcessedStoryOutcome(proc: ProcessedStoryEffects): boolean {
@@ -499,6 +688,7 @@ export function GameRuntime({ initialGameState }: GameRuntimeProps) {
 
     if (proc.clueIds.length > 0) {
       setStoryClues((prev) => [...prev, ...proc.clueIds]);
+      triggerPulse("clue");
     }
 
     if (proc.healFirstLiving > 0) {
@@ -519,6 +709,8 @@ export function GameRuntime({ initialGameState }: GameRuntimeProps) {
     }
 
     if (proc.damageFirstLiving > 0) {
+      triggerPulse("damage");
+      triggerShake();
       const firstLiving = getFirstLivingPlayerIndex(gameState);
       if (firstLiving !== null) {
         const nextPlayers = gameState.players.map((player, idx) =>
@@ -558,6 +750,7 @@ export function GameRuntime({ initialGameState }: GameRuntimeProps) {
     }
 
     if (proc.grantReward) {
+      triggerPulse("reward");
       if (proc.grantReward.markRoomComplete) {
         markRoomComplete(proc.grantReward.markRoomComplete);
       }
@@ -569,6 +762,7 @@ export function GameRuntime({ initialGameState }: GameRuntimeProps) {
     }
 
     if (proc.combat) {
+      triggerShake();
       beginRoomCombat(proc.combat.room, {
         entranceResumeSceneId: proc.combat.resumeSceneId,
       });
@@ -584,8 +778,14 @@ export function GameRuntime({ initialGameState }: GameRuntimeProps) {
       : getFirstLivingPlayerIndex(gameState);
   const activePlayer =
     activePlayerIndex === null ? null : gameState.players[activePlayerIndex];
+  const hostPlayer = gameState.players.find((p) => p.isHost) ?? gameState.players[0] ?? null;
+  const isHostClient =
+    !hostPlayer || !currentClientPlayerId ? true : hostPlayer.id === currentClientPlayerId;
 
-  function handleExplorationAction(action: ExplorationActionKind) {
+  function handleExplorationAction(
+    action: ExplorationActionKind,
+    statOverride?: number,
+  ) {
     if (sceneStage !== "action" || choiceMode !== "room_action") return;
     if (!activePlayer) return;
 
@@ -603,11 +803,12 @@ export function GameRuntime({ initialGameState }: GameRuntimeProps) {
     setRoomPacing(pacingAfter);
 
     const stat =
-      action === "search"
+      statOverride ??
+      (action === "search"
         ? activePlayer.skill
         : action === "inspect"
           ? activePlayer.mind
-          : activePlayer.guard;
+          : activePlayer.guard);
     const explorationAdv = explorationHasAdvantage(
       activePlayer.class,
       action,
@@ -635,6 +836,13 @@ export function GameRuntime({ initialGameState }: GameRuntimeProps) {
       pacingAfter,
       rs,
     );
+    if (output.effects.some((e) => e.type === "add_clue")) triggerPulse("clue");
+    if (output.effects.some((e) => e.type === "damage_player")) {
+      triggerPulse("damage");
+      triggerShake();
+    }
+    if (output.effects.some((e) => e.type === "grant_reward")) triggerPulse("reward");
+    if (output.effects.some((e) => e.type === "start_combat")) triggerShake();
 
     const proc = processStoryEffects(output.effects, {
       canExitRoom: canExitNow,
@@ -656,6 +864,43 @@ export function GameRuntime({ initialGameState }: GameRuntimeProps) {
     }
   }
 
+  function statValueForDecision(player: PlayerGameState, stat: DecisionStat): number {
+    return stat === "skill"
+      ? player.skill
+      : stat === "mind"
+        ? player.mind
+        : stat === "guard"
+          ? player.guard
+          : player.power;
+  }
+
+  function handleSceneDecision(decisionId: string) {
+    if (sceneStage !== "action" || choiceMode !== "room_action") return;
+    if (!activePlayer) return;
+    if (!isHostClient) return;
+    if (pendingDecision) return;
+
+    const decision = ROOM_DECISIONS[currentRoom].find((d) => d.id === decisionId);
+    if (!decision) return;
+    setPartyDecisionNote(`${hostPlayer?.name ?? "Host"} chose: ${decision.label}`);
+    window.setTimeout(() => setPartyDecisionNote(null), 1200);
+    setRoomSceneBeat((prev) => ({ ...prev, [currentRoom]: prev[currentRoom] + 1 }));
+    const chooserId = hostPlayer?.id ?? activePlayer.id;
+    setPendingDecision({ label: decision.label, playerId: chooserId });
+    const delayMs = 560;
+    if (decisionResolveTimerRef.current !== null) {
+      window.clearTimeout(decisionResolveTimerRef.current);
+    }
+    decisionResolveTimerRef.current = window.setTimeout(() => {
+      const stat = statValueForDecision(activePlayer, decision.stat);
+      handleExplorationAction(decision.action, stat);
+      setPendingDecision(null);
+      setRecentDecisionPlayerId(chooserId);
+      window.setTimeout(() => setRecentDecisionPlayerId(null), 1100);
+      decisionResolveTimerRef.current = null;
+    }, delayMs);
+  }
+
   function handleOutcomeContinue() {
     setOutcomeOverlay(null);
     setSceneStage("action");
@@ -663,6 +908,7 @@ export function GameRuntime({ initialGameState }: GameRuntimeProps) {
 
   function handleLeaveExploredRoom() {
     if (sceneStage !== "action" || choiceMode !== "room_action") return;
+    if (pendingDecision) return;
     if (!roomExitCriteriaMet(roomPacing)) return;
     if (currentRoom === "boss_room") return;
 
@@ -712,6 +958,7 @@ export function GameRuntime({ initialGameState }: GameRuntimeProps) {
 
   function handleOpenBossBindingChoices() {
     if (currentRoom !== "boss_room" || sceneStage !== "action") return;
+    if (pendingDecision) return;
     if (roomPacing.interactionCount < 4) return;
     setSceneStage("choice");
   }
@@ -806,6 +1053,8 @@ export function GameRuntime({ initialGameState }: GameRuntimeProps) {
   }
 
   function applyRiskPenaltyThenCombat(room: RoomId, penalty: number, line: string) {
+    triggerPulse("damage");
+    triggerShake();
     const firstLiving = getFirstLivingPlayerIndex(gameState);
 
     if (firstLiving !== null) {
@@ -987,7 +1236,7 @@ export function GameRuntime({ initialGameState }: GameRuntimeProps) {
         return;
       }
     }
-    pushNarration(`${ROOM_LABELS[currentRoom]}: choose an action.`);
+    pushNarration(`${ROOM_LABELS[currentRoom]}: decide your next move.`);
   }
 
   function handleRoomActionChoice(choiceId: string) {
@@ -1071,7 +1320,7 @@ export function GameRuntime({ initialGameState }: GameRuntimeProps) {
     setCurrentRoom("entrance_hall");
     setChoiceMode("room_action");
     setOutcomeOverlay(null);
-    setSceneStage("intro");
+    setSceneStage("prologue");
     setEncounterStatus("active");
     setCompletedRooms([]);
     setRoomPacing(initialRoomPacing());
@@ -1086,6 +1335,18 @@ export function GameRuntime({ initialGameState }: GameRuntimeProps) {
     prevJournalUnlockCountRef.current = 0;
     setResultCard(null);
     setEncounterAnimGeneration(0);
+    setPendingDecision(null);
+    setRecentDecisionPlayerId(null);
+    setIntroCardIndex(0);
+    setDraftClasses(
+      Object.fromEntries(initialGameState.players.map((p) => [p.id, p.class ?? ""])),
+    );
+    setRoomSceneBeat({
+      entrance_hall: 0,
+      library: 0,
+      dining_room: 0,
+      boss_room: 0,
+    });
     setGameState(initLocalState(initialGameState));
     setNarrationLog(() => {
       const intro = getStoryScene(
@@ -1097,6 +1358,8 @@ export function GameRuntime({ initialGameState }: GameRuntimeProps) {
   }
 
   const showCombatLayer = sceneStage === "combat";
+  const showPrologueLayer = sceneStage === "prologue";
+  const showClassSelectLayer = sceneStage === "class_select";
   const showIntroLayer = sceneStage === "intro";
   const showActionLayer =
     sceneStage === "action" && choiceMode === "room_action";
@@ -1147,14 +1410,27 @@ export function GameRuntime({ initialGameState }: GameRuntimeProps) {
     hauntedHouseEntrance,
     entranceStorySceneId,
   );
+  const currentScenePrompt = (() => {
+    const beats = ROOM_SCENE_PROMPTS[currentRoom];
+    const idx = Math.min(roomSceneBeat[currentRoom], beats.length - 1);
+    return beats[idx] ?? "The house waits for your next choice.";
+  })();
+  const allClassesChosen = gameState.players.every((p) =>
+    isValidPlayerClass(draftClasses[p.id] ?? ""),
+  );
 
   return (
     <div
-      className="relative flex min-h-screen flex-1 flex-col bg-zinc-950 bg-cover bg-center bg-no-repeat text-zinc-100"
+      className={`relative flex min-h-screen flex-1 flex-col bg-zinc-950 bg-cover bg-center bg-no-repeat text-zinc-100 ${
+        shakeScreen ? "scene-shake" : ""
+      } ${impactPulse ? `impact-pulse-${impactPulse}` : ""}`}
       style={{ backgroundImage: backgroundStyle }}
       data-story-clues={storyClues.length}
     >
       <div className="pointer-events-none absolute inset-0 bg-black/40" aria-hidden />
+      {pendingDecision ? (
+        <div className="pointer-events-none absolute inset-0 z-[41] bg-black/35 transition-opacity duration-200" />
+      ) : null}
       {metaNarration ? (
         <div
           role="status"
@@ -1163,6 +1439,19 @@ export function GameRuntime({ initialGameState }: GameRuntimeProps) {
         >
           <p className="rounded-md border border-amber-900/45 bg-zinc-950/80 px-3 py-2 text-xs font-medium italic leading-snug tracking-wide text-amber-100/85 shadow-[0_0_28px_rgba(251,191,36,0.14)] backdrop-blur-sm">
             {metaNarration}
+          </p>
+        </div>
+      ) : null}
+      {impactPulse ? (
+        <div className="pointer-events-none fixed left-1/2 top-[17%] z-[56] -translate-x-1/2">
+          <p className="rounded-md border border-zinc-500/40 bg-zinc-950/80 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-100 shadow-lg backdrop-blur-sm">
+            {impactPulse === "clue"
+              ? "Clue Discovered"
+              : impactPulse === "reward"
+                ? "Reward Granted"
+                : impactPulse === "damage"
+                  ? "Danger Strikes"
+                  : "Presence Interrupts"}
           </p>
         </div>
       ) : null}
@@ -1218,6 +1507,8 @@ export function GameRuntime({ initialGameState }: GameRuntimeProps) {
         <PartyPanel
           players={gameState.players}
           activePlayerId={activePlayer?.id ?? null}
+          decisionLeadId={showActionLayer ? (hostPlayer?.id ?? null) : null}
+          recentDecisionPlayerId={recentDecisionPlayerId}
         />
 
         {showCombatLayer ? (
@@ -1255,9 +1546,107 @@ export function GameRuntime({ initialGameState }: GameRuntimeProps) {
           />
         </div>
 
+        {showPrologueLayer ? (
+          <div className="absolute inset-0 z-40 flex items-center justify-center px-4">
+            <div className="scene-card w-full max-w-2xl rounded-xl border border-amber-700/55 bg-zinc-950/86 p-6 text-center shadow-xl backdrop-blur-sm transition-all duration-300">
+              <h2 className="text-2xl font-semibold text-amber-100">The House Opens</h2>
+              <p className="mt-4 text-base leading-relaxed text-zinc-200">
+                {RUN_INTRO_CARDS[introCardIndex]}
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  if (introCardIndex < RUN_INTRO_CARDS.length - 1) {
+                    setIntroCardIndex((i) => i + 1);
+                    return;
+                  }
+                  setSceneStage("class_select");
+                }}
+                className="mt-5 rounded-md border border-amber-600/60 bg-amber-950/40 px-4 py-2 text-sm text-amber-100"
+              >
+                {introCardIndex < RUN_INTRO_CARDS.length - 1 ? "Next Page" : "Choose Classes"}
+              </button>
+            </div>
+          </div>
+        ) : null}
+
+        {showClassSelectLayer ? (
+          <div className="absolute inset-0 z-40 flex items-center justify-center px-4">
+            <div className="scene-card w-full max-w-3xl rounded-xl border border-violet-700/60 bg-zinc-950/88 p-6 shadow-xl backdrop-blur-sm transition-all duration-300">
+              <h2 className="text-center text-2xl font-semibold text-violet-100">
+                Choose Class Roles
+              </h2>
+              <p className="mt-2 text-center text-sm text-zinc-300">
+                Make your picks before entering the first scene.
+              </p>
+              <div className="mt-4 grid gap-3 md:grid-cols-2">
+                {gameState.players.map((player) => {
+                  const selected = draftClasses[player.id] ?? "";
+                  return (
+                    <div
+                      key={player.id}
+                      className="rounded-lg border border-zinc-700/70 bg-zinc-900/70 p-3"
+                    >
+                      <p className="text-sm font-semibold text-zinc-100">{player.name}</p>
+                      <p className="mt-1 text-xs text-zinc-500">
+                        {selected ? `Selected: ${selected}` : "No class selected"}
+                      </p>
+                      <div className="mt-2 grid grid-cols-2 gap-2">
+                        {PLAYER_CLASSES.map((c) => (
+                          <button
+                            key={c}
+                            type="button"
+                            onClick={() =>
+                              setDraftClasses((prev) => ({ ...prev, [player.id]: c }))
+                            }
+                            className={`rounded-md border px-2 py-1.5 text-xs ${
+                              selected === c
+                                ? "border-violet-400 bg-violet-900/45 text-violet-100"
+                                : "border-zinc-700 bg-zinc-900 text-zinc-300 hover:bg-zinc-800"
+                            }`}
+                          >
+                            {c}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              <div className="mt-5 flex justify-center">
+                <button
+                  type="button"
+                  disabled={!allClassesChosen}
+                  onClick={() => {
+                    setGameState((prev) => ({
+                      ...prev,
+                      players: prev.players.map((p) => {
+                        const c = draftClasses[p.id] ?? "";
+                        const stats = initialRpgStatsForClass(c);
+                        return {
+                          ...p,
+                          class: c,
+                          power: stats.power,
+                          skill: stats.skill,
+                          mind: stats.mind,
+                          guard: stats.guard,
+                        };
+                      }),
+                    }));
+                    setSceneStage("intro");
+                  }}
+                  className="rounded-md border border-violet-500/60 bg-violet-950/40 px-5 py-2 text-sm text-violet-100 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Enter the House
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
+
         {showIntroLayer ? (
           <div className="absolute inset-0 z-40 flex items-center justify-center px-4">
-            <div className="w-full max-w-xl rounded-xl border border-violet-700/60 bg-zinc-950/85 p-6 text-center shadow-xl backdrop-blur-sm">
+            <div className="scene-card w-full max-w-xl rounded-xl border border-violet-700/60 bg-zinc-950/85 p-6 text-center shadow-xl backdrop-blur-sm">
               <h2 className="text-2xl font-semibold text-violet-100">
                 {currentRoom === "entrance_hall" && entranceIntroScene?.type === "intro"
                   ? entranceIntroScene.roomTitle
@@ -1278,44 +1667,66 @@ export function GameRuntime({ initialGameState }: GameRuntimeProps) {
             </div>
           </div>
         ) : null}
+        {sceneStage === "combat_transition" ? (
+          <div className="absolute inset-0 z-[44] flex items-center justify-center px-4">
+            <div className="absolute inset-0 bg-black/55" />
+            <div className="scene-card w-full max-w-md rounded-xl border border-rose-700/65 bg-zinc-950/90 p-5 text-center shadow-xl backdrop-blur-sm">
+              <h3 className="text-lg font-semibold text-rose-100">Encounter</h3>
+              <p className="mt-2 text-sm text-zinc-200">
+                {combatTransitionText ?? "Something lunges from the dark."}
+              </p>
+            </div>
+          </div>
+        ) : null}
 
         {showActionLayer ? (
           <div className="absolute inset-x-0 bottom-24 z-40 flex justify-center px-4 md:bottom-28">
-            <div className="w-full max-w-2xl rounded-xl border border-violet-700/60 bg-zinc-950/85 p-4 shadow-xl backdrop-blur-sm">
+            <div className="scene-card w-full max-w-2xl rounded-xl border border-violet-700/60 bg-zinc-950/85 p-4 shadow-xl backdrop-blur-sm">
               <h3 className="text-center text-sm font-semibold uppercase tracking-wider text-violet-200">
-                Explore the room
+                Party Decision
               </h3>
               <p className="mt-2 text-center text-sm text-zinc-300">
-                {narrationLog[0] ?? "The house waits."}
+                {currentScenePrompt}
               </p>
-              <div className="mt-3 grid gap-2 sm:grid-cols-3">
-                <button
-                  type="button"
-                  onClick={() => handleExplorationAction("search")}
-                  className="rounded-lg border border-violet-600/50 bg-zinc-900/80 px-3 py-3 text-center text-sm font-medium text-violet-100 hover:bg-zinc-800"
-                >
-                  Search
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleExplorationAction("inspect")}
-                  className="rounded-lg border border-violet-600/50 bg-zinc-900/80 px-3 py-3 text-center text-sm font-medium text-violet-100 hover:bg-zinc-800"
-                >
-                  Inspect
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleExplorationAction("listen")}
-                  className="rounded-lg border border-violet-600/50 bg-zinc-900/80 px-3 py-3 text-center text-sm font-medium text-violet-100 hover:bg-zinc-800"
-                >
-                  Listen
-                </button>
+              <p className="mt-1 text-center text-xs text-zinc-400">
+                {hostPlayer ? `${hostPlayer.name} selects for the party.` : "Make a group call."}
+              </p>
+              <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                {ROOM_DECISIONS[currentRoom].map((decision) => (
+                  <button
+                    key={decision.id}
+                    type="button"
+                    onClick={() => handleSceneDecision(decision.id)}
+                    disabled={!isHostClient || !!pendingDecision}
+                    className={`rounded-lg border border-violet-600/50 bg-zinc-900/80 px-3 py-3 text-left text-sm font-medium text-violet-100 hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-55 ${
+                      pendingDecision?.label === decision.label ? "decision-pending" : ""
+                    }`}
+                  >
+                    {decision.label}
+                  </button>
+                ))}
               </div>
+              {pendingDecision ? (
+                <p className="mt-2 text-center text-xs text-zinc-300">
+                  {gameState.players.find((p) => p.id === pendingDecision.playerId)?.name ??
+                    "Party"}{" "}
+                  commits to this move...
+                </p>
+              ) : null}
+              {partyDecisionNote ? (
+                <p className="mt-3 text-center text-xs font-medium text-amber-200">{partyDecisionNote}</p>
+              ) : null}
+              {!isHostClient ? (
+                <p className="mt-2 text-center text-[11px] text-zinc-500">
+                  Waiting for host choice...
+                </p>
+              ) : null}
               {currentRoom === "boss_room" && roomPacing.interactionCount >= 4 ? (
                 <button
                   type="button"
+                  disabled={!isHostClient || !!pendingDecision}
                   onClick={handleOpenBossBindingChoices}
-                  className="mt-3 w-full rounded-lg border border-amber-700/55 bg-amber-950/35 px-3 py-3 text-center text-sm font-medium text-amber-100 hover:bg-amber-950/50"
+                  className="mt-3 w-full rounded-lg border border-amber-700/55 bg-amber-950/35 px-3 py-3 text-center text-sm font-medium text-amber-100 hover:bg-amber-950/50 disabled:cursor-not-allowed disabled:opacity-55"
                 >
                   Face the binding
                 </button>
@@ -1341,7 +1752,7 @@ export function GameRuntime({ initialGameState }: GameRuntimeProps) {
 
         {showOutcomeLayer && outcomeOverlay ? (
           <div className="absolute inset-0 z-[45] flex items-center justify-center px-4">
-            <div className="w-full max-w-md rounded-xl border border-violet-700/60 bg-zinc-950/90 p-6 text-center shadow-xl backdrop-blur-sm">
+            <div className="scene-card outcome-reveal w-full max-w-md rounded-xl border border-violet-700/60 bg-zinc-950/90 p-6 text-center shadow-xl backdrop-blur-sm">
               <h3 className="text-lg font-semibold text-violet-100">
                 {outcomeOverlay.title}
               </h3>
@@ -1361,7 +1772,7 @@ export function GameRuntime({ initialGameState }: GameRuntimeProps) {
 
         {showChoiceLayer ? (
           <div className="absolute inset-x-0 bottom-24 z-40 flex justify-center px-4 md:bottom-28">
-            <div className="w-full max-w-2xl rounded-xl border border-violet-700/60 bg-zinc-950/85 p-4 shadow-xl backdrop-blur-sm">
+            <div className="scene-card w-full max-w-2xl rounded-xl border border-violet-700/60 bg-zinc-950/85 p-4 shadow-xl backdrop-blur-sm">
               <h3 className="text-center text-sm font-semibold uppercase tracking-wider text-violet-200">
                 {choiceMode === "room_select"
                   ? "Choose Next Room"
@@ -1390,8 +1801,9 @@ export function GameRuntime({ initialGameState }: GameRuntimeProps) {
                     <button
                       key={choice.id}
                       type="button"
+                      disabled={!isHostClient}
                       onClick={() => handleRoomActionChoice(choice.id)}
-                      className="rounded-lg border border-violet-600/50 bg-zinc-900/80 px-3 py-3 text-left text-sm text-zinc-100 hover:bg-zinc-800"
+                      className="rounded-lg border border-violet-600/50 bg-zinc-900/80 px-3 py-3 text-left text-sm text-zinc-100 hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-55"
                     >
                       {choice.label}
                     </button>
@@ -1404,7 +1816,7 @@ export function GameRuntime({ initialGameState }: GameRuntimeProps) {
 
         {showResultLayer && resultCard ? (
           <div className="absolute inset-0 z-40 flex items-center justify-center px-4">
-            <div className="w-full max-w-md rounded-xl border border-violet-700/60 bg-zinc-950/85 p-6 text-center shadow-xl backdrop-blur-sm">
+            <div className="scene-card w-full max-w-md rounded-xl border border-violet-700/60 bg-zinc-950/85 p-6 text-center shadow-xl backdrop-blur-sm">
               <h2 className="text-2xl font-semibold text-violet-100">{resultCard.title}</h2>
               <p className="mt-2 text-sm text-zinc-300">{resultCard.message}</p>
               <div className="mt-4 flex justify-center gap-2">

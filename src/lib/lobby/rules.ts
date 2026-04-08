@@ -7,7 +7,6 @@ export function lobbyStartConditionsMet(
   const minPlayers = mode === "solo" ? 1 : 2;
   if (players.length < minPlayers) return false;
   for (const p of players) {
-    if (!p.class) return false;
     if (!p.ready) return false;
   }
   return true;

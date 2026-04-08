@@ -6,9 +6,7 @@ import { useEffect, useState, useTransition } from "react";
 import {
   setPlayerReadyAction,
   startGameAction,
-  updatePlayerClassAction,
 } from "@/app/actions/lobby";
-import { PLAYER_CLASSES } from "@/lib/lobby/constants";
 import { lobbyStartConditionsMet } from "@/lib/lobby/rules";
 import { getStoredPlayerId } from "@/lib/lobby/storage";
 import { getSupabaseClient } from "@/lib/supabase";
@@ -64,22 +62,6 @@ export function LobbyView({ session, players }: LobbyViewProps) {
 
   const current = players.find((p) => p.id === currentPlayerId);
   const canStart = lobbyStartConditionsMet(players, session.mode);
-
-  function handleClassChange(playerId: string, value: string) {
-    setActionError(null);
-    startTransition(async () => {
-      const result = await updatePlayerClassAction(
-        playerId,
-        value,
-        session.code,
-      );
-      if (!result.ok) {
-        setActionError(result.error);
-        return;
-      }
-      router.refresh();
-    });
-  }
 
   function handleReadyToggle(playerId: string, next: boolean) {
     setActionError(null);
@@ -205,34 +187,11 @@ export function LobbyView({ session, players }: LobbyViewProps) {
 
                   <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                     <div className="text-sm text-zinc-400">
-                      Class:{" "}
-                      <span className="text-zinc-200">
-                        {player.class || "—"}
-                      </span>
+                      Class: <span className="text-zinc-500">Chosen after intro</span>
                     </div>
 
                     {isSelf ? (
                       <div className="flex flex-wrap items-center gap-2">
-                        <label className="text-xs text-zinc-500">
-                          <span className="sr-only">Class</span>
-                          <select
-                            value={player.class || ""}
-                            onChange={(ev) =>
-                              handleClassChange(player.id, ev.target.value)
-                            }
-                            disabled={isPending}
-                            className="rounded-md border border-zinc-700 bg-zinc-950 px-2 py-1.5 text-sm text-white outline-none focus:border-zinc-500"
-                          >
-                            <option value="" disabled>
-                              Select class
-                            </option>
-                            {PLAYER_CLASSES.map((c) => (
-                              <option key={c} value={c}>
-                                {c}
-                              </option>
-                            ))}
-                          </select>
-                        </label>
                         <button
                           type="button"
                           disabled={isPending}
@@ -265,8 +224,8 @@ export function LobbyView({ session, players }: LobbyViewProps) {
             {!canStart ? (
               <p className="text-center text-xs text-zinc-500">
                 {session.mode === "solo"
-                  ? "Pick a class and mark ready to start."
-                  : "Need at least 2 players; everyone must pick a class and be ready."}
+                  ? "Mark ready to begin."
+                  : "Need at least 2 players; everyone must be ready."}
               </p>
             ) : null}
           </div>

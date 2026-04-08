@@ -48,5 +48,5 @@ export default async function GamePage({ params }: GamePageProps) {
 
   const gameState = createInitialGameState(rows);
 
-  return <GameRuntime initialGameState={gameState} />;
+  return <GameRuntime initialGameState={gameState} sessionId={sessionId} />;
 }

@@ -7,11 +7,19 @@ type PartyPanelProps = {
     class: string;
     hp: number;
     maxHp: number;
+    isHost?: boolean;
   }>;
   activePlayerId: string | null;
+  decisionLeadId?: string | null;
+  recentDecisionPlayerId?: string | null;
 };
 
-export function PartyPanel({ players, activePlayerId }: PartyPanelProps) {
+export function PartyPanel({
+  players,
+  activePlayerId,
+  decisionLeadId = null,
+  recentDecisionPlayerId = null,
+}: PartyPanelProps) {
   return (
     <section className="absolute left-3 top-16 z-20 w-[11.5rem] rounded-md border border-violet-900/40 bg-zinc-950/55 p-2.5 shadow-md backdrop-blur-sm md:left-5 md:top-20 md:w-52">
       <h2 className="mb-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-violet-300/90">
@@ -21,6 +29,8 @@ export function PartyPanel({ players, activePlayerId }: PartyPanelProps) {
         {players.map((p) => {
           const isActive = activePlayerId === p.id;
           const isDefeated = p.hp <= 0;
+          const isDecisionLead = decisionLeadId === p.id;
+          const isRecentDecider = recentDecisionPlayerId === p.id;
           const portrait = characterPortraitSrc(p.class);
           return (
             <li
@@ -28,7 +38,9 @@ export function PartyPanel({ players, activePlayerId }: PartyPanelProps) {
               className={`rounded border px-2 py-1.5 ${
                 isDefeated
                   ? "border-zinc-800/70 bg-zinc-900/20 opacity-45"
-                  : isActive
+                  : isRecentDecider
+                    ? "border-violet-400/85 bg-violet-950/40 ring-1 ring-violet-400/35"
+                    : isActive
                     ? "border-amber-500/80 bg-amber-950/35 ring-1 ring-amber-500/30"
                     : "border-zinc-700/70 bg-zinc-950/45"
               }`}
@@ -51,6 +63,21 @@ export function PartyPanel({ players, activePlayerId }: PartyPanelProps) {
                 <div className="min-w-0 flex-1">
                   <div className="truncate text-xs font-medium text-zinc-100">
                     {p.name}
+                    {p.isHost ? (
+                      <span className="ml-1 text-[10px] uppercase tracking-wide text-amber-300/85">
+                        Host
+                      </span>
+                    ) : null}
+                    {isDecisionLead ? (
+                      <span className="ml-1 text-[10px] uppercase tracking-wide text-violet-300/90">
+                        Deciding
+                      </span>
+                    ) : null}
+                    {isRecentDecider ? (
+                      <span className="ml-1 text-[10px] uppercase tracking-wide text-violet-200">
+                        Chose
+                      </span>
+                    ) : null}
                   </div>
                   <div className="text-[11px] text-zinc-400">
                     {p.class || "—"} · HP {p.hp}/{p.maxHp}

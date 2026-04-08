@@ -131,11 +131,154 @@ body {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .scene-card {
+    animation: none !important;
+    transform: none !important;
+  }
+
+  .decision-pending,
+  .outcome-reveal {
+    animation: none !important;
+    transform: none !important;
+  }
+
+  .scene-shake {
+    animation: none !important;
+  }
+
+  .impact-pulse-damage,
+  .impact-pulse-clue,
+  .impact-pulse-reward,
+  .impact-pulse-meta {
+    animation: none !important;
+  }
+
   .enemy-entrance {
     animation: none !important;
     animation-delay: 0s !important;
     opacity: 1 !important;
     transform: none !important;
     filter: none !important;
+  }
+}
+
+.scene-card {
+  animation: scene-card-in 220ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.decision-pending {
+  animation: decision-pending 560ms ease-in-out both;
+}
+
+.outcome-reveal {
+  animation: outcome-reveal 240ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.scene-shake {
+  animation: scene-shake 280ms ease-in-out both;
+}
+
+.impact-pulse-damage {
+  animation: impact-damage 280ms ease-out both;
+}
+
+.impact-pulse-clue {
+  animation: impact-clue 280ms ease-out both;
+}
+
+.impact-pulse-reward {
+  animation: impact-reward 280ms ease-out both;
+}
+
+.impact-pulse-meta {
+  animation: impact-meta 280ms ease-out both;
+}
+
+@keyframes scene-card-in {
+  0% {
+    opacity: 0;
+    transform: translateY(8px) scale(0.985);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes decision-pending {
+  0% {
+    filter: brightness(1);
+    transform: scale(1);
+  }
+  40% {
+    filter: brightness(1.12);
+    transform: scale(1.01);
+  }
+  100% {
+    filter: brightness(1);
+    transform: scale(1);
+  }
+}
+
+@keyframes outcome-reveal {
+  0% {
+    opacity: 0;
+    transform: translateY(8px) scale(0.97);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes scene-shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  25% {
+    transform: translateX(-4px);
+  }
+  50% {
+    transform: translateX(4px);
+  }
+  75% {
+    transform: translateX(-2px);
+  }
+}
+
+@keyframes impact-damage {
+  0% {
+    box-shadow: inset 0 0 0 0 rgba(239, 68, 68, 0.42);
+  }
+  100% {
+    box-shadow: inset 0 0 0 18px rgba(239, 68, 68, 0);
+  }
+}
+
+@keyframes impact-clue {
+  0% {
+    box-shadow: inset 0 0 0 0 rgba(168, 85, 247, 0.38);
+  }
+  100% {
+    box-shadow: inset 0 0 0 18px rgba(168, 85, 247, 0);
+  }
+}
+
+@keyframes impact-reward {
+  0% {
+    box-shadow: inset 0 0 0 0 rgba(245, 158, 11, 0.34);
+  }
+  100% {
+    box-shadow: inset 0 0 0 18px rgba(245, 158, 11, 0);
+  }
+}
+
+@keyframes impact-meta {
+  0% {
+    box-shadow: inset 0 0 0 0 rgba(34, 211, 238, 0.3);
+  }
+  100% {
+    box-shadow: inset 0 0 0 18px rgba(34, 211, 238, 0);
   }
 }
