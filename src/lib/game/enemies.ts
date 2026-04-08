@@ -21,7 +21,7 @@ export const ENEMY_TEMPLATES: Record<string, EnemyTemplate> = {
   restless_spirit: {
     id: "restless_spirit",
     name: "Restless Spirit",
-    maxHp: 10,
+    maxHp: 12,
     baseDamage: 4,
     behavior: "fragile",
     roomTags: ["entrance_hall", "light", "ghost"],
@@ -43,7 +43,7 @@ export const ENEMY_TEMPLATES: Record<string, EnemyTemplate> = {
   shadow_figure: {
     id: "shadow_figure",
     name: "Shadow Figure",
-    maxHp: 8,
+    maxHp: 11,
     baseDamage: 5,
     behavior: "fragile",
     roomTags: ["library", "ghost", "knowledge"],
@@ -54,7 +54,7 @@ export const ENEMY_TEMPLATES: Record<string, EnemyTemplate> = {
   portrait_sentry: {
     id: "portrait_sentry",
     name: "Portrait Sentry",
-    maxHp: 11,
+    maxHp: 13,
     baseDamage: 6,
     behavior: "defensive",
     roomTags: ["registry_gallery", "watcher"],

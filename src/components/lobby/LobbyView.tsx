@@ -6,7 +6,11 @@ import { useEffect, useState, useTransition } from "react";
 import {
   setPlayerReadyAction,
   startGameAction,
+  updateSessionLobbySettingsAction,
 } from "@/app/actions/lobby";
+import type { GameDifficulty } from "@/config/difficulty";
+import { GAME_DIFFICULTY_LABELS } from "@/config/difficulty";
+import { LOBBY_STORY_HOOK_OPTIONS } from "@/config/lobbySettings";
 import { lobbyStartConditionsMet } from "@/lib/lobby/rules";
 import { getStoredPlayerId } from "@/lib/lobby/storage";
 import { getSupabaseClient } from "@/lib/supabase";
@@ -142,19 +146,103 @@ export function LobbyView({ session, players }: LobbyViewProps) {
       <main className="mx-auto flex w-full max-w-lg flex-col gap-8">
         <header className="text-center">
           <h1 className="title-joust phosphor-glow text-3xl md:text-4xl">Country Squire</h1>
-          <p className="campaign-subtitle mt-1 text-xs text-violet-200/90">Party Lobby</p>
-          <p className="mt-2 text-sm font-medium text-violet-300">
-            Mode: {session.mode === "solo" ? "Solo" : "Party"}
-          </p>
+          <p className="campaign-subtitle mt-1 text-xs text-violet-200/90">Session lobby</p>
           <p className="mt-2 font-mono text-lg tracking-widest text-zinc-300">
             {session.code}
           </p>
           <p className="mt-1 text-sm text-zinc-500">
-            {session.mode === "solo"
-              ? "Solo run — invite friends with the code if you like."
-              : "Share this code with other players."}
+            Share this code so friends can join before you start.
           </p>
         </header>
+
+        <section className="rounded-lg border border-zinc-800 bg-zinc-900/50 px-4 py-3 text-sm">
+          <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-500">
+            Run settings
+          </h2>
+          <dl className="grid gap-2 text-zinc-300">
+            <div className="flex justify-between gap-4">
+              <dt className="text-zinc-500">Difficulty</dt>
+              <dd>{GAME_DIFFICULTY_LABELS[session.difficulty]}</dd>
+            </div>
+            <div className="flex justify-between gap-4">
+              <dt className="text-zinc-500">Story hook</dt>
+              <dd className="text-right">
+                {session.storyHook
+                  ? (LOBBY_STORY_HOOK_OPTIONS.find((o) => o.id === session.storyHook)
+                      ?.label ?? session.storyHook)
+                  : "Choose in game"}
+              </dd>
+            </div>
+          </dl>
+          {current.isHost ? (
+            <div className="mt-3 flex flex-col gap-2 border-t border-zinc-800 pt-3">
+              <label className="flex flex-col gap-1 text-xs text-zinc-500">
+                Difficulty
+                <select
+                  defaultValue={session.difficulty}
+                  disabled={isPending}
+                  onChange={(ev) => {
+                    const v = ev.target.value as GameDifficulty;
+                    setActionError(null);
+                    startTransition(async () => {
+                      const result = await updateSessionLobbySettingsAction(
+                        session.id,
+                        current.id,
+                        session.code,
+                        { difficulty: v },
+                      );
+                      if (!result.ok) {
+                        setActionError(result.error);
+                        return;
+                      }
+                      router.refresh();
+                    });
+                  }}
+                  className="rounded-md border border-zinc-700 bg-zinc-950 px-2 py-1.5 text-sm text-zinc-100"
+                >
+                  {(Object.keys(GAME_DIFFICULTY_LABELS) as GameDifficulty[]).map(
+                    (id) => (
+                      <option key={id} value={id}>
+                        {GAME_DIFFICULTY_LABELS[id]}
+                      </option>
+                    ),
+                  )}
+                </select>
+              </label>
+              <label className="flex flex-col gap-1 text-xs text-zinc-500">
+                Story hook
+                <select
+                  defaultValue={session.storyHook ?? ""}
+                  disabled={isPending}
+                  onChange={(ev) => {
+                    const v = ev.target.value;
+                    setActionError(null);
+                    startTransition(async () => {
+                      const result = await updateSessionLobbySettingsAction(
+                        session.id,
+                        current.id,
+                        session.code,
+                        { storyHook: v === "" ? null : v },
+                      );
+                      if (!result.ok) {
+                        setActionError(result.error);
+                        return;
+                      }
+                      router.refresh();
+                    });
+                  }}
+                  className="rounded-md border border-zinc-700 bg-zinc-950 px-2 py-1.5 text-sm text-zinc-100"
+                >
+                  {LOBBY_STORY_HOOK_OPTIONS.map((opt) => (
+                    <option key={opt.id || "ingame"} value={opt.id}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+          ) : null}
+        </section>
 
         {actionError ? (
           <p className="text-center text-sm text-red-400" role="alert">

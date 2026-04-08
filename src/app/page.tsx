@@ -33,13 +33,7 @@ export default function Home() {
               href="/play"
               className="rounded-lg border border-zinc-300/40 bg-zinc-900/65 px-4 py-3 text-sm font-semibold uppercase tracking-wide text-zinc-100 hover:bg-zinc-800/75"
             >
-              Join Game
-            </Link>
-            <Link
-              href="/play"
-              className="rounded-lg border border-zinc-300/40 bg-zinc-900/65 px-4 py-3 text-sm font-semibold uppercase tracking-wide text-zinc-100 hover:bg-zinc-800/75"
-            >
-              Solo Run
+              Join with code
             </Link>
           </div>
         </main>

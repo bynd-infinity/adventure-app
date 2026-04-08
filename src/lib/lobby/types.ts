@@ -5,6 +5,8 @@ export type SessionRow = {
   current_scene: string;
   turn_index: number;
   mode?: string | null;
+  difficulty?: string | null;
+  story_hook?: string | null;
 };
 
 export type PlayerRow = {

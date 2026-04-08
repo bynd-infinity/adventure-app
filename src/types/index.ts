@@ -8,6 +8,8 @@ export type Player = {
   ready: boolean;
 };
 
+import type { GameDifficulty } from "@/config/difficulty";
+
 export type SessionMode = "solo" | "party";
 
 export type Session = {
@@ -17,6 +19,10 @@ export type Session = {
   currentScene: string;
   turnIndex: number;
   mode: SessionMode;
+  /** Combat / pacing tuning. */
+  difficulty: GameDifficulty;
+  /** Campaign hook id, or null to pick in-game. */
+  storyHook: string | null;
 };
 
 /** Phase 3 — Project-Outline.txt */

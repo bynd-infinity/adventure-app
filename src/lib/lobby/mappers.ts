@@ -1,3 +1,4 @@
+import { normalizeGameDifficulty } from "@/config/difficulty";
 import type { Player, Session, SessionMode } from "@/types";
 import type { PlayerRow, SessionRow } from "./types";
 
@@ -13,6 +14,8 @@ export function mapSessionRow(row: SessionRow): Session {
     currentScene: row.current_scene,
     turnIndex: row.turn_index,
     mode: normalizeSessionMode(row.mode),
+    difficulty: normalizeGameDifficulty(row.difficulty),
+    storyHook: row.story_hook?.trim() ? row.story_hook.trim() : null,
   };
 }
 

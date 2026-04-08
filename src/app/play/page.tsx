@@ -19,7 +19,7 @@ export default function PlayPage() {
               Session Hall
             </p>
             <p className="mt-3 text-zinc-300">
-              Create a party, run solo, or join with a code.
+              Start a run or join a friend&apos;s session with a code.
             </p>
           </div>
           <HomeLobbyForms />

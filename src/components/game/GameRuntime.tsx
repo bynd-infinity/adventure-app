@@ -55,6 +55,12 @@ import {
   type ProcessedStoryEffects,
 } from "@/lib/story/effects";
 import { initialRpgStatsForClass } from "@/lib/game/classStats";
+import type { GameDifficulty } from "@/config/difficulty";
+import {
+  difficultyCombatMods,
+  normalizeGameDifficulty,
+  scaleEnemiesForDifficulty,
+} from "@/config/difficulty";
 import { PLAYER_CLASSES, isValidPlayerClass } from "@/lib/lobby/constants";
 import { getStoredPlayerId } from "@/lib/lobby/storage";
 import {
@@ -81,6 +87,10 @@ import { SceneStage } from "./SceneStage";
 type GameRuntimeProps = {
   initialGameState: GameState;
   sessionId: string;
+  /** From session row; defaults to standard if missing. */
+  lobbyDifficulty?: GameDifficulty | string | null;
+  /** Campaign hook flag id, or null to choose in the run. */
+  lobbyStoryHook?: string | null;
 };
 
 type PlayerGameState = Player & {
@@ -199,6 +209,18 @@ const CAMPAIGN_HOOKS = [
 
 type CampaignHookId = (typeof CAMPAIGN_HOOKS)[number]["id"];
 
+function buildInitialNarrationLog(presetHook: CampaignHookId | null): string[] {
+  const intro = getStoryScene(
+    hauntedHouseEntrance,
+    hauntedHouseEntrance.initialSceneId,
+  );
+  const baseLine =
+    intro?.type === "intro" ? intro.text : HAUNTED_ROOM_INTRO.entrance_hall;
+  if (!presetHook) return [baseLine];
+  const hook = CAMPAIGN_HOOKS.find((h) => h.id === presetHook);
+  if (!hook) return [baseLine];
+  return [baseLine, `Hook: ${hook.title}. ${hook.text}`];
+}
 
 function initLocalState(initial: GameState): LocalGameState {
   return {
@@ -313,24 +335,39 @@ function rewardNarrationLabel(rewardId: string): string {
   return "Your footing and timing improve.";
 }
 
-export function GameRuntime({ initialGameState, sessionId }: GameRuntimeProps) {
+export function GameRuntime({
+  initialGameState,
+  sessionId,
+  lobbyDifficulty: lobbyDifficultyProp,
+  lobbyStoryHook,
+}: GameRuntimeProps) {
   const router = useRouter();
+  const lobbyDifficulty = normalizeGameDifficulty(lobbyDifficultyProp);
+  const combatMods = useMemo(
+    () => difficultyCombatMods(lobbyDifficulty),
+    [lobbyDifficulty],
+  );
+  const initialPresetHook = useMemo((): CampaignHookId | null => {
+    if (!lobbyStoryHook) return null;
+    return CAMPAIGN_HOOKS.some((h) => h.id === lobbyStoryHook)
+      ? (lobbyStoryHook as CampaignHookId)
+      : null;
+  }, [lobbyStoryHook]);
+
   const [gameState, setGameState] = useState<LocalGameState>(() =>
     initLocalState(initialGameState),
   );
   const [encounterStatus, setEncounterStatus] = useState<EncounterStatus>("active");
-  const [sceneStage, setSceneStage] = useState<SceneStageMode>("hook_select");
+  const [sceneStage, setSceneStage] = useState<SceneStageMode>(() =>
+    initialPresetHook ? "prologue" : "hook_select",
+  );
   const [choiceMode, setChoiceMode] = useState<ChoiceMode>("room_action");
   const [currentRoom, setCurrentRoom] = useState<RoomId>("entrance_hall");
   const [completedRooms, setCompletedRooms] = useState<RoomId[]>([]);
   const [resultCard, setResultCard] = useState<ResultCard | null>(null);
-  const [narrationLog, setNarrationLog] = useState<string[]>(() => {
-    const intro = getStoryScene(
-      hauntedHouseEntrance,
-      hauntedHouseEntrance.initialSceneId,
-    );
-    return [intro?.type === "intro" ? intro.text : HAUNTED_ROOM_INTRO.entrance_hall];
-  });
+  const [narrationLog, setNarrationLog] = useState<string[]>(() =>
+    buildInitialNarrationLog(initialPresetHook),
+  );
   const [roomPacing, setRoomPacing] = useState<RoomPacingState>(initialRoomPacing);
   const [entranceStorySceneId, setEntranceStorySceneId] = useState(
     hauntedHouseEntrance.initialSceneId,
@@ -341,7 +378,9 @@ export function GameRuntime({ initialGameState, sessionId }: GameRuntimeProps) {
   >(null);
   const [metaNarration, setMetaNarration] = useState<string | null>(null);
   const metaOnceKeysRef = useRef<Set<string>>(new Set());
-  const [storyFlags, setStoryFlags] = useState<Record<string, boolean>>({});
+  const [storyFlags, setStoryFlags] = useState<Record<string, boolean>>(() =>
+    initialPresetHook ? { [initialPresetHook]: true } : {},
+  );
   const [journalOpen, setJournalOpen] = useState(false);
   const [journalToast, setJournalToast] = useState<string | null>(null);
   const prevJournalUnlockCountRef = useRef(0);
@@ -659,7 +698,10 @@ export function GameRuntime({ initialGameState, sessionId }: GameRuntimeProps) {
       window.clearTimeout(combatTransitionTimerRef.current);
     }
     combatTransitionTimerRef.current = window.setTimeout(() => {
-      const enemies = generateEncounter(room);
+      const enemies = scaleEnemiesForDifficulty(
+        generateEncounter(room),
+        lobbyDifficulty,
+      );
       setEncounterAnimGeneration((g) => g + 1);
       setBattlePlayerPhase("idle");
       setSceneStage("combat");
@@ -1025,7 +1067,11 @@ export function GameRuntime({ initialGameState, sessionId }: GameRuntimeProps) {
         enemy.baseDamage,
       );
       const reduced = Math.max(0, damage - target.guard);
-      const nextHp = clampHp(target.hp - reduced);
+      const scaledReduced = Math.max(
+        0,
+        Math.round(reduced * combatMods.enemyDamageMul),
+      );
+      const nextHp = clampHp(target.hp - scaledReduced);
       const nextPlayers = current.players.map((p, idx) =>
         idx === targetIndex ? { ...p, hp: nextHp } : p,
       );
@@ -1037,7 +1083,7 @@ export function GameRuntime({ initialGameState, sessionId }: GameRuntimeProps) {
         outcome,
         enemy.name,
         target.name,
-        reduced,
+        scaledReduced,
       );
 
       const defeatedText = nextHp === 0 ? ` ${target.name} collapses.` : "";
@@ -1123,8 +1169,13 @@ export function GameRuntime({ initialGameState, sessionId }: GameRuntimeProps) {
     );
     const tier = outcomeTierFromTotal(total);
     const { damage, outcome } = resolvePlayerAttackByTier(tier, activePlayer.power);
-    const rawHit = Math.max(0, damage + activePlayer.power - 1);
-    const finalDamage = applyIncomingDamageToEnemy(target, rawHit);
+    // Keep class power meaningful, but reduce early one-hit kills.
+    const rawHit = Math.max(0, damage + Math.floor(activePlayer.power / 2));
+    const scaledHit = Math.max(
+      0,
+      Math.round(rawHit * combatMods.playerDamageMul),
+    );
+    const finalDamage = applyIncomingDamageToEnemy(target, scaledHit);
 
     setBattlePlayerPhase("strike");
     setImpactEnemyId(target.id);
@@ -1171,6 +1222,42 @@ export function GameRuntime({ initialGameState, sessionId }: GameRuntimeProps) {
       pushNarration(
         `${combatTierPrefix("fail")} ${formatStatRollSuffixWithMode(attackMode, d20, d20Other, activePlayer.power, total)}`,
       );
+      if (enemyWillAct) {
+        setBattlePlayerPhase("enemy");
+        setCombatBeatText("Enemy movement!");
+        await waitMs(ROOM_TIMING_PROFILE[currentRoom].combatEnemyWindupMs);
+        const preEnemyState = stateAfterPlayerAttack;
+        const enemyTurn = resolveAllEnemyTurns(preEnemyState);
+        stateAfterPlayerAttack = enemyTurn.nextState;
+        const primaryEnemyLine = enemyTurn.enemyNarrations[0];
+        const damaged =
+          stateAfterPlayerAttack.players.find((p, i) => {
+            const beforeHp = preEnemyState.players[i]?.hp ?? p.hp;
+            return p.hp < beforeHp;
+          })?.id ?? null;
+        if (damaged) {
+          setImpactPlayerId(damaged);
+          triggerPulse("damage");
+          triggerShake();
+        }
+        setCombatBeatText(primaryEnemyLine ?? "Enemy turn resolves.");
+        setGameState(stateAfterPlayerAttack);
+        await waitMs(ROOM_TIMING_PROFILE[currentRoom].combatResolveGapMs);
+        setBattlePlayerPhase("idle");
+        for (const line of enemyTurn.enemyNarrations) {
+          pushNarration(line);
+        }
+        if (getLivingPlayers(stateAfterPlayerAttack).length === 0) {
+          setEncounterStatus("defeat");
+          setResultCard({
+            title: "Defeat",
+            message: "Your party is down.",
+            cta: "Retry (Soon)",
+            next: "stay",
+          });
+          setSceneStage("result");
+        }
+      }
       clearCombatImpact();
       setBattlePlayerPhase("idle");
       setCombatResolving(false);
@@ -1417,7 +1504,7 @@ export function GameRuntime({ initialGameState, sessionId }: GameRuntimeProps) {
     setCurrentRoom("entrance_hall");
     setChoiceMode("room_action");
     setOutcomeOverlay(null);
-    setSceneStage("hook_select");
+    setSceneStage(initialPresetHook ? "prologue" : "hook_select");
     setEncounterStatus("active");
     setCompletedRooms([]);
     setRoomPacing(initialRoomPacing());
@@ -1426,7 +1513,7 @@ export function GameRuntime({ initialGameState, sessionId }: GameRuntimeProps) {
     setStoryCombatResumeSceneId(null);
     metaOnceKeysRef.current.clear();
     setMetaNarration(null);
-    setStoryFlags({});
+    setStoryFlags(initialPresetHook ? { [initialPresetHook]: true } : {});
     setJournalOpen(false);
     setJournalToast(null);
     prevJournalUnlockCountRef.current = 0;
@@ -1450,13 +1537,7 @@ export function GameRuntime({ initialGameState, sessionId }: GameRuntimeProps) {
       boss_room: 0,
     });
     setGameState(initLocalState(initialGameState));
-    setNarrationLog(() => {
-      const intro = getStoryScene(
-        hauntedHouseEntrance,
-        hauntedHouseEntrance.initialSceneId,
-      );
-      return [intro?.type === "intro" ? intro.text : HAUNTED_ROOM_INTRO.entrance_hall];
-    });
+    setNarrationLog(() => buildInitialNarrationLog(initialPresetHook));
   }
 
   function handleHookSelect(hookId: (typeof CAMPAIGN_HOOKS)[number]["id"]) {

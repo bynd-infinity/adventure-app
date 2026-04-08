@@ -13,11 +13,13 @@ import {
 import { lobbyStartConditionsMet } from "@/lib/lobby/rules";
 import type { SessionMode } from "@/types";
 import { getSupabaseClient } from "@/lib/supabase";
+import type { GameDifficulty } from "@/config/difficulty";
 import {
   createSession,
   fetchSessionById,
   findSessionByCode,
   setSessionActive,
+  updateSessionLobbySettings,
 } from "@/lib/lobby/session";
 
 function lobbyPath(code: string) {
@@ -28,12 +30,17 @@ export type LobbyError = { ok: false; error: string };
 
 export async function createLobbyAction(
   hostName: string,
-  mode: SessionMode,
+  options: {
+    mode: SessionMode;
+    difficulty?: GameDifficulty;
+    storyHook?: string | null;
+  },
 ): Promise<
   | LobbyError
   | { ok: true; sessionId: string; code: string; playerId: string }
 > {
   try {
+    const { mode, difficulty, storyHook } = options;
     if (mode !== "solo" && mode !== "party") {
       return { ok: false, error: "Invalid lobby mode." };
     }
@@ -55,7 +62,10 @@ export async function createLobbyAction(
       testError,
     });
 
-    const session = await createSession(mode, supabase);
+    const session = await createSession(mode, supabase, {
+      difficulty,
+      storyHook,
+    });
     const player = await createHostPlayer(session.id, hostName, supabase);
     return {
       ok: true,
@@ -134,6 +144,29 @@ export async function setPlayerReadyAction(
     return {
       ok: false,
       error: e instanceof Error ? e.message : "Failed to update ready state.",
+    };
+  }
+}
+
+export async function updateSessionLobbySettingsAction(
+  sessionId: string,
+  hostPlayerId: string,
+  lobbyCode: string,
+  updates: { difficulty?: GameDifficulty; storyHook?: string | null },
+): Promise<LobbyError | { ok: true }> {
+  const isHost = await verifySessionHost(sessionId, hostPlayerId);
+  if (!isHost) {
+    return { ok: false, error: "Only the host can change session settings." };
+  }
+  try {
+    await updateSessionLobbySettings(sessionId, updates);
+    revalidatePath(lobbyPath(lobbyCode));
+    return { ok: true };
+  } catch (e) {
+    return {
+      ok: false,
+      error:
+        e instanceof Error ? e.message : "Failed to update session settings.",
     };
   }
 }
