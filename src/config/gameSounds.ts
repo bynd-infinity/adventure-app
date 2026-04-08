@@ -1,5 +1,3 @@
-import type { RoomId } from "@/lib/story/rooms";
-
 /** Static WAV paths under `public/sounds` (from audio lab export). */
 export const SOUNDS = {
   uiConfirm: "/sounds/ui-confirm.wav",
@@ -31,16 +29,5 @@ export const SOUNDS = {
   itemRest: "/sounds/item-rest.wav",
 
   musicTitle: "/sounds/music-title-loop.wav",
-  musicLobby: "/sounds/music-lobby-loop.wav",
-  musicCombat: "/sounds/music-combat-loop.wav",
   musicBoss: "/sounds/music-boss-loop.wav",
 } as const;
-
-export const ROOM_AMBIENT: Record<RoomId, string> = {
-  entrance_hall: "/sounds/ambient-entrance.wav",
-  registry_gallery: "/sounds/ambient-registry.wav",
-  library: "/sounds/ambient-library.wav",
-  servants_corridor: "/sounds/ambient-servants.wav",
-  dining_room: "/sounds/ambient-dining.wav",
-  boss_room: "/sounds/ambient-boss.wav",
-};

@@ -91,7 +91,7 @@ import { PartyPanel } from "./PartyPanel";
 import { RunSuppliesBar } from "./RunSuppliesBar";
 import { SceneStage } from "./SceneStage";
 import { CharacterSelectLayer } from "./CharacterSelectLayer";
-import { ROOM_AMBIENT, SOUNDS } from "@/config/gameSounds";
+import { SOUNDS } from "@/config/gameSounds";
 import { getGameAudio } from "@/lib/audio/gameAudio";
 
 type GameRuntimeProps = {
@@ -492,10 +492,10 @@ export function GameRuntime({
       a.setMusic(SOUNDS.musicTitle);
     } else if (sceneStage === "combat" || sceneStage === "combat_transition") {
       a.setMusic(
-        currentRoom === "boss_room" ? SOUNDS.musicBoss : SOUNDS.musicCombat,
+        currentRoom === "boss_room" ? SOUNDS.musicBoss : SOUNDS.musicTitle,
       );
     } else {
-      a.setMusic(ROOM_AMBIENT[currentRoom]);
+      a.setMusic(SOUNDS.musicTitle);
     }
   }, [sceneStage, currentRoom]);
 
