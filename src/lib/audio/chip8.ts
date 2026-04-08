@@ -173,8 +173,36 @@ export function renderTrackerLoop(
   return out;
 }
 
+const CHROMATIC_2_TO_3 = [
+  "C2",
+  "C#2",
+  "D2",
+  "D#2",
+  "E2",
+  "F2",
+  "F#2",
+  "G2",
+  "G#2",
+  "A2",
+  "A#2",
+  "B2",
+  "C3",
+  "C#3",
+  "D3",
+  "D#3",
+  "E3",
+  "F3",
+  "F#3",
+  "G3",
+  "G#3",
+  "A3",
+  "A#3",
+  "B3",
+] as const;
+
 export const NOTE_OPTIONS: { label: string; freq: number | null }[] = [
   { label: "— Rest —", freq: null },
+  ...CHROMATIC_2_TO_3.map((n) => ({ label: n, freq: noteToFreq(n) })),
   { label: "C4", freq: noteToFreq("C4") },
   { label: "C#4", freq: noteToFreq("C#4") },
   { label: "D4", freq: noteToFreq("D4") },
@@ -190,69 +218,7 @@ export const NOTE_OPTIONS: { label: string; freq: number | null }[] = [
   { label: "C5", freq: noteToFreq("C5") },
   { label: "D5", freq: noteToFreq("D5") },
   { label: "E5", freq: noteToFreq("E5") },
-  { label: "G3", freq: noteToFreq("G3") },
-  { label: "A3", freq: noteToFreq("A3") },
 ];
-
-export function sfxPresets(): Record<string, Partial<SfxParams>> {
-  return {
-    Blip: {
-      waveform: "square",
-      freqStart: 880,
-      freqEnd: 1320,
-      durationMs: 80,
-      attack: 0.05,
-      decay: 0.35,
-      sustain: 0.2,
-      release: 0.4,
-      duty: 0.5,
-    },
-    Coin: {
-      waveform: "square",
-      freqStart: 988,
-      freqEnd: 1318,
-      durationMs: 160,
-      attack: 0.02,
-      decay: 0.2,
-      sustain: 0.5,
-      release: 0.5,
-      duty: 0.5,
-    },
-    Hit: {
-      waveform: "triangle",
-      freqStart: 220,
-      freqEnd: 55,
-      durationMs: 220,
-      attack: 0.01,
-      decay: 0.5,
-      sustain: 0.1,
-      release: 0.35,
-      duty: 0.5,
-    },
-    Laser: {
-      waveform: "saw",
-      freqStart: 2400,
-      freqEnd: 200,
-      durationMs: 280,
-      attack: 0.02,
-      decay: 0.4,
-      sustain: 0.15,
-      release: 0.35,
-      duty: 0.5,
-    },
-    NoiseBurst: {
-      waveform: "noise",
-      freqStart: 400,
-      freqEnd: 400,
-      durationMs: 120,
-      attack: 0.05,
-      decay: 0.45,
-      sustain: 0.2,
-      release: 0.25,
-      duty: 0.5,
-    },
-  };
-}
 
 export function defaultSfxParams(): SfxParams {
   return {

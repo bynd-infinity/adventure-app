@@ -2,13 +2,16 @@
 
 import { useCallback, useMemo, useRef, useState } from "react";
 import {
+  MUSIC_LAB_PRESETS,
+  MUSIC_PRESETS_BY_ID,
+  SFX_LAB_PRESETS,
+  SFX_PRESETS_BY_ID,
+} from "@/config/audioLabPresets";
+import {
   CHIP_SAMPLE_RATE,
-  defaultSfxParams,
-  mergeSfxParams,
   NOTE_OPTIONS,
   renderSfx,
   renderTrackerLoop,
-  sfxPresets,
   type ChipWaveform,
   type SfxParams,
   type TrackerStep,
@@ -17,8 +20,12 @@ import { downloadArrayBuffer, encodeFloatToWav8Mono } from "@/lib/audio/wavEncod
 
 type TabId = "sfx" | "music";
 
+const SFX_CATEGORY_ORDER = ["UI", "Exploration", "Combat", "Items"] as const;
+
 function playSamples(samples: Float32Array, sampleRate: number): void {
-  const Ctx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+  const Ctx =
+    window.AudioContext ||
+    (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
   const ctx = new Ctx({ sampleRate }) as AudioContext;
   const buf = ctx.createBuffer(1, samples.length, sampleRate);
   buf.getChannelData(0).set(samples);
@@ -33,7 +40,7 @@ const STEPS = 16;
 
 function defaultTrackerSteps(): TrackerStep[] {
   const pat: TrackerStep[] = new Array(STEPS).fill(null);
-  const notes = [NOTE_OPTIONS[2], NOTE_OPTIONS[4], NOTE_OPTIONS[6], NOTE_OPTIONS[9]]; // C4 D4 E4 G4
+  const notes = [NOTE_OPTIONS[2], NOTE_OPTIONS[4], NOTE_OPTIONS[6], NOTE_OPTIONS[9]];
   for (let i = 0; i < STEPS; i++) {
     pat[i] = notes[i % 4]!.freq;
   }
@@ -42,22 +49,70 @@ function defaultTrackerSteps(): TrackerStep[] {
 
 export function EightBitAudioLab() {
   const [tab, setTab] = useState<TabId>("sfx");
-  const [sfx, setSfx] = useState<SfxParams>(() => defaultSfxParams());
+  const [sfx, setSfx] = useState<SfxParams>(() =>
+    SFX_PRESETS_BY_ID["ui-confirm"]!.params,
+  );
+  const [sfxPresetId, setSfxPresetId] = useState("ui-confirm");
   const [musicBpm, setMusicBpm] = useState(128);
   const [musicWave, setMusicWave] = useState<ChipWaveform>("square");
   const [musicDuty, setMusicDuty] = useState(0.5);
   const [musicLoops, setMusicLoops] = useState(2);
+  const [musicPresetId, setMusicPresetId] = useState("");
   const [trackerSteps, setTrackerSteps] = useState<TrackerStep[]>(() =>
     defaultTrackerSteps(),
   );
   const playingRef = useRef(false);
 
-  const presetList = useMemo(() => sfxPresets(), []);
+  const sfxByCategory = useMemo(() => {
+    const m = new Map<string, typeof SFX_LAB_PRESETS>();
+    for (const p of SFX_LAB_PRESETS) {
+      const list = m.get(p.category) ?? [];
+      list.push(p);
+      m.set(p.category, list);
+    }
+    return m;
+  }, []);
 
-  const applyPreset = (name: string) => {
-    const p = presetList[name];
-    if (p) setSfx((prev) => mergeSfxParams(prev, p));
+  const musicLoopPresets = useMemo(
+    () => MUSIC_LAB_PRESETS.filter((p) => p.id.startsWith("music-")),
+    [],
+  );
+  const ambientPresets = useMemo(
+    () => MUSIC_LAB_PRESETS.filter((p) => p.id.startsWith("ambient-")),
+    [],
+  );
+
+  const sfxDownloadName =
+    sfxPresetId && SFX_PRESETS_BY_ID[sfxPresetId]
+      ? SFX_PRESETS_BY_ID[sfxPresetId].exportFile
+      : "chip-sfx.wav";
+
+  const musicDownloadName =
+    musicPresetId && MUSIC_PRESETS_BY_ID[musicPresetId]
+      ? MUSIC_PRESETS_BY_ID[musicPresetId].exportFile
+      : "chip-loop.wav";
+
+  const applySfxPreset = (id: string) => {
+    const preset = SFX_PRESETS_BY_ID[id];
+    if (!preset) return;
+    setSfxPresetId(id);
+    setSfx(preset.params);
   };
+
+  const touchSfxCustom = () => setSfxPresetId("");
+
+  const applyMusicPreset = useCallback((id: string) => {
+    const preset = MUSIC_PRESETS_BY_ID[id];
+    if (!preset) return;
+    setMusicPresetId(id);
+    setMusicBpm(preset.bpm);
+    setMusicWave(preset.waveform);
+    setMusicDuty(preset.duty);
+    setMusicLoops(preset.musicLoops);
+    setTrackerSteps([...preset.steps]);
+  }, []);
+
+  const touchMusicCustom = () => setMusicPresetId("");
 
   const previewSfx = useCallback(() => {
     if (playingRef.current) return;
@@ -72,8 +127,8 @@ export function EightBitAudioLab() {
   const exportSfx = useCallback(() => {
     const samples = renderSfx(sfx);
     const wav = encodeFloatToWav8Mono(samples, CHIP_SAMPLE_RATE);
-    downloadArrayBuffer(wav, "chip-sfx.wav");
-  }, [sfx]);
+    downloadArrayBuffer(wav, sfxDownloadName);
+  }, [sfx, sfxDownloadName]);
 
   const previewMusic = useCallback(() => {
     if (playingRef.current) return;
@@ -105,10 +160,11 @@ export function EightBitAudioLab() {
       samples = merged;
     }
     const wav = encodeFloatToWav8Mono(samples, CHIP_SAMPLE_RATE);
-    downloadArrayBuffer(wav, "chip-loop.wav");
-  }, [trackerSteps, musicBpm, musicWave, musicDuty, musicLoops]);
+    downloadArrayBuffer(wav, musicDownloadName);
+  }, [trackerSteps, musicBpm, musicWave, musicDuty, musicLoops, musicDownloadName]);
 
   const setStep = (index: number, freq: TrackerStep) => {
+    touchMusicCustom();
     setTrackerSteps((prev) => {
       const next = [...prev];
       next[index] = freq;
@@ -131,9 +187,11 @@ export function EightBitAudioLab() {
         8-bit audio lab
       </h2>
       <p className="mt-2 text-sm leading-relaxed text-zinc-400">
-        Prototype sound effects and short loops here, then export 8-bit mono WAV files for use
-        under <code className="rounded bg-zinc-800 px-1 text-emerald-200/90">public/sounds</code>.
-        Preview uses your browser; export matches the same synthesis.
+        Load a preset for each game sound or loop, tweak if you like, then export 8-bit mono WAV into{" "}
+        <code className="rounded bg-zinc-800 px-1 text-emerald-200/90">public/sounds</code>. Download
+        uses the filename shown for the selected preset; custom tweaks save as{" "}
+        <code className="text-zinc-500">chip-sfx.wav</code> /{" "}
+        <code className="text-zinc-500">chip-loop.wav</code>.
       </p>
 
       <div className="mt-6 flex flex-wrap gap-2 border-b border-zinc-800 pb-4">
@@ -161,21 +219,31 @@ export function EightBitAudioLab() {
       {tab === "sfx" ? (
         <div className="mt-6 space-y-5">
           <div className="flex flex-wrap items-end gap-3">
-            <label className="flex flex-col gap-1 text-xs text-zinc-500">
-              Preset
+            <label className="flex min-w-[min(100%,20rem)] flex-col gap-1 text-xs text-zinc-500">
+              Preset → <span className="font-mono text-[10px] text-emerald-600/90">{sfxDownloadName}</span>
               <select
                 className="rounded-md border border-zinc-700 bg-zinc-950 px-2 py-2 text-sm text-zinc-100"
+                value={sfxPresetId}
                 onChange={(e) => {
-                  if (e.target.value) applyPreset(e.target.value);
+                  const v = e.target.value;
+                  if (v) applySfxPreset(v);
+                  else touchSfxCustom();
                 }}
-                defaultValue=""
               >
-                <option value="">— Load preset —</option>
-                {Object.keys(presetList).map((k) => (
-                  <option key={k} value={k}>
-                    {k}
-                  </option>
-                ))}
+                <option value="">— Custom (unnamed) —</option>
+                {SFX_CATEGORY_ORDER.map((cat) => {
+                  const list = sfxByCategory.get(cat);
+                  if (!list?.length) return null;
+                  return (
+                    <optgroup key={cat} label={cat}>
+                      {list.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.label}
+                        </option>
+                      ))}
+                    </optgroup>
+                  );
+                })}
               </select>
             </label>
             <label className="flex flex-col gap-1 text-xs text-zinc-500">
@@ -183,9 +251,10 @@ export function EightBitAudioLab() {
               <select
                 className="rounded-md border border-zinc-700 bg-zinc-950 px-2 py-2 text-sm text-zinc-100"
                 value={sfx.waveform}
-                onChange={(e) =>
-                  setSfx((p) => ({ ...p, waveform: e.target.value as ChipWaveform }))
-                }
+                onChange={(e) => {
+                  touchSfxCustom();
+                  setSfx((p) => ({ ...p, waveform: e.target.value as ChipWaveform }));
+                }}
               >
                 <option value="square">Square</option>
                 <option value="triangle">Triangle</option>
@@ -202,7 +271,10 @@ export function EightBitAudioLab() {
               max={4000}
               step={1}
               value={sfx.freqStart}
-              onChange={(v) => setSfx((p) => ({ ...p, freqStart: v }))}
+              onChange={(v) => {
+                touchSfxCustom();
+                setSfx((p) => ({ ...p, freqStart: v }));
+              }}
             />
             <Slider
               label="End frequency (Hz) — sweep"
@@ -210,7 +282,10 @@ export function EightBitAudioLab() {
               max={4000}
               step={1}
               value={sfx.freqEnd}
-              onChange={(v) => setSfx((p) => ({ ...p, freqEnd: v }))}
+              onChange={(v) => {
+                touchSfxCustom();
+                setSfx((p) => ({ ...p, freqEnd: v }));
+              }}
             />
             <Slider
               label="Duration (ms)"
@@ -218,7 +293,10 @@ export function EightBitAudioLab() {
               max={2000}
               step={10}
               value={sfx.durationMs}
-              onChange={(v) => setSfx((p) => ({ ...p, durationMs: v }))}
+              onChange={(v) => {
+                touchSfxCustom();
+                setSfx((p) => ({ ...p, durationMs: v }));
+              }}
             />
             <Slider
               label="Square duty"
@@ -226,7 +304,10 @@ export function EightBitAudioLab() {
               max={0.95}
               step={0.05}
               value={sfx.duty}
-              onChange={(v) => setSfx((p) => ({ ...p, duty: v }))}
+              onChange={(v) => {
+                touchSfxCustom();
+                setSfx((p) => ({ ...p, duty: v }));
+              }}
             />
             <Slider
               label="Attack"
@@ -234,7 +315,10 @@ export function EightBitAudioLab() {
               max={0.5}
               step={0.01}
               value={sfx.attack}
-              onChange={(v) => setSfx((p) => ({ ...p, attack: v }))}
+              onChange={(v) => {
+                touchSfxCustom();
+                setSfx((p) => ({ ...p, attack: v }));
+              }}
             />
             <Slider
               label="Decay"
@@ -242,7 +326,10 @@ export function EightBitAudioLab() {
               max={0.6}
               step={0.01}
               value={sfx.decay}
-              onChange={(v) => setSfx((p) => ({ ...p, decay: v }))}
+              onChange={(v) => {
+                touchSfxCustom();
+                setSfx((p) => ({ ...p, decay: v }));
+              }}
             />
             <Slider
               label="Sustain level"
@@ -250,7 +337,10 @@ export function EightBitAudioLab() {
               max={1}
               step={0.05}
               value={sfx.sustain}
-              onChange={(v) => setSfx((p) => ({ ...p, sustain: v }))}
+              onChange={(v) => {
+                touchSfxCustom();
+                setSfx((p) => ({ ...p, sustain: v }));
+              }}
             />
             <Slider
               label="Release"
@@ -258,7 +348,10 @@ export function EightBitAudioLab() {
               max={0.6}
               step={0.01}
               value={sfx.release}
-              onChange={(v) => setSfx((p) => ({ ...p, release: v }))}
+              onChange={(v) => {
+                touchSfxCustom();
+                setSfx((p) => ({ ...p, release: v }));
+              }}
             />
           </div>
 
@@ -275,12 +368,43 @@ export function EightBitAudioLab() {
               onClick={exportSfx}
               className="rounded-lg border border-zinc-600 bg-zinc-900 px-4 py-2 text-sm font-semibold text-zinc-200 hover:bg-zinc-800"
             >
-              Download WAV
+              Download {sfxDownloadName}
             </button>
           </div>
         </div>
       ) : (
         <div className="mt-6 space-y-5">
+          <label className="flex min-w-[min(100%,22rem)] flex-col gap-1 text-xs text-zinc-500">
+            Preset → <span className="font-mono text-[10px] text-emerald-600/90">{musicDownloadName}</span>
+            <select
+              className="rounded-md border border-zinc-700 bg-zinc-950 px-2 py-2 text-sm text-zinc-100"
+              value={musicPresetId}
+              onChange={(e) => {
+                const v = e.target.value;
+                if (v) applyMusicPreset(v);
+                else {
+                  setMusicPresetId("");
+                }
+              }}
+            >
+              <option value="">— Custom pattern —</option>
+              <optgroup label="Music loops">
+                {musicLoopPresets.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.label}
+                  </option>
+                ))}
+              </optgroup>
+              <optgroup label="Room ambient">
+                {ambientPresets.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.label}
+                  </option>
+                ))}
+              </optgroup>
+            </select>
+          </label>
+
           <div className="flex flex-wrap gap-4">
             <label className="flex flex-col gap-1 text-xs text-zinc-500">
               BPM
@@ -289,7 +413,10 @@ export function EightBitAudioLab() {
                 min={40}
                 max={240}
                 value={musicBpm}
-                onChange={(e) => setMusicBpm(Number(e.target.value) || 120)}
+                onChange={(e) => {
+                  touchMusicCustom();
+                  setMusicBpm(Number(e.target.value) || 120);
+                }}
                 className="w-24 rounded-md border border-zinc-700 bg-zinc-950 px-2 py-2 text-sm text-zinc-100"
               />
             </label>
@@ -298,9 +425,10 @@ export function EightBitAudioLab() {
               <select
                 className="rounded-md border border-zinc-700 bg-zinc-950 px-2 py-2 text-sm text-zinc-100"
                 value={musicWave}
-                onChange={(e) =>
-                  setMusicWave(e.target.value as ChipWaveform)
-                }
+                onChange={(e) => {
+                  touchMusicCustom();
+                  setMusicWave(e.target.value as ChipWaveform);
+                }}
               >
                 <option value="square">Square</option>
                 <option value="triangle">Triangle</option>
@@ -314,7 +442,10 @@ export function EightBitAudioLab() {
               max={0.95}
               step={0.05}
               value={musicDuty}
-              onChange={setMusicDuty}
+              onChange={(v) => {
+                touchMusicCustom();
+                setMusicDuty(v);
+              }}
             />
             <label className="flex flex-col gap-1 text-xs text-zinc-500">
               Loop repeats (export)
@@ -323,15 +454,18 @@ export function EightBitAudioLab() {
                 min={1}
                 max={32}
                 value={musicLoops}
-                onChange={(e) => setMusicLoops(Math.max(1, Number(e.target.value) || 1))}
+                onChange={(e) => {
+                  touchMusicCustom();
+                  setMusicLoops(Math.max(1, Number(e.target.value) || 1));
+                }}
                 className="w-20 rounded-md border border-zinc-700 bg-zinc-950 px-2 py-2 text-sm text-zinc-100"
               />
             </label>
           </div>
 
           <p className="text-xs text-zinc-500">
-            Sixteen steps at 16th-note resolution (one bar in 4/4). Choose pitch per step — monophonic
-            chip lead.
+            Sixteen steps at 16th-note resolution (one bar in 4/4). Presets set BPM, waveform, default
+            export repeats, and the step pattern.
           </p>
 
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 md:grid-cols-8">
@@ -340,9 +474,7 @@ export function EightBitAudioLab() {
                 key={i}
                 className="flex flex-col gap-1 rounded-lg border border-zinc-800 bg-zinc-900/80 p-2"
               >
-                <span className="text-[10px] font-mono uppercase text-zinc-500">
-                  {i + 1}
-                </span>
+                <span className="text-[10px] font-mono uppercase text-zinc-500">{i + 1}</span>
                 <select
                   className="w-full rounded border border-zinc-700 bg-zinc-950 py-1 text-[11px] text-zinc-100"
                   value={stepSelectIndex(step)}
@@ -374,7 +506,7 @@ export function EightBitAudioLab() {
               onClick={exportMusic}
               className="rounded-lg border border-zinc-600 bg-zinc-900 px-4 py-2 text-sm font-semibold text-zinc-200 hover:bg-zinc-800"
             >
-              Download WAV
+              Download {musicDownloadName}
             </button>
           </div>
         </div>
