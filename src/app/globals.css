@@ -177,7 +177,7 @@ body {
 }
 
 .decision-pending {
-  animation: decision-pending 560ms ease-in-out both;
+  animation: decision-pending 520ms ease-in-out both;
 }
 
 .outcome-reveal {
@@ -185,43 +185,43 @@ body {
 }
 
 .combat-beat {
-  animation: combat-beat 180ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation: combat-beat 160ms cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
 .combat-impact-hit {
-  animation: combat-hit 180ms ease-out both;
+  animation: combat-hit 160ms ease-out both;
 }
 
 .combat-impact-strong {
-  animation: combat-strong 220ms ease-out both;
+  animation: combat-strong 200ms ease-out both;
 }
 
 .combat-impact-critical {
-  animation: combat-critical 260ms ease-out both;
+  animation: combat-critical 230ms ease-out both;
 }
 
 .combat-impact-miss {
-  animation: combat-miss 180ms ease-out both;
+  animation: combat-miss 160ms ease-out both;
 }
 
 .scene-shake {
-  animation: scene-shake 280ms ease-in-out both;
+  animation: scene-shake 240ms ease-in-out both;
 }
 
 .impact-pulse-damage {
-  animation: impact-damage 280ms ease-out both;
+  animation: impact-damage 260ms ease-out both;
 }
 
 .impact-pulse-clue {
-  animation: impact-clue 280ms ease-out both;
+  animation: impact-clue 260ms ease-out both;
 }
 
 .impact-pulse-reward {
-  animation: impact-reward 280ms ease-out both;
+  animation: impact-reward 260ms ease-out both;
 }
 
 .impact-pulse-meta {
-  animation: impact-meta 280ms ease-out both;
+  animation: impact-meta 260ms ease-out both;
 }
 
 @keyframes scene-card-in {
@@ -338,13 +338,13 @@ body {
     transform: translateX(0);
   }
   25% {
-    transform: translateX(-4px);
+    transform: translateX(-3px);
   }
   50% {
-    transform: translateX(4px);
+    transform: translateX(3px);
   }
   75% {
-    transform: translateX(-2px);
+    transform: translateX(-1px);
   }
 }
 

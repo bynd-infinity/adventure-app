@@ -74,6 +74,16 @@ function EnemyCard({
       >
         {enemy.name}
       </p>
+      {enemy.spriteSrc ? (
+        // eslint-disable-next-line @next/next/no-img-element -- local static enemy art
+        <img
+          src={enemy.spriteSrc}
+          alt=""
+          className={`mx-auto mt-3 object-contain ${
+            isBoss ? "h-44 w-44 md:h-52 md:w-52" : "h-28 w-28 md:h-32 md:w-32"
+          }`}
+        />
+      ) : null}
       <p className="mt-3 text-lg text-rose-100/90">
         HP {enemy.hp}/{enemy.maxHp}
       </p>

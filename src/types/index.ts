@@ -40,6 +40,8 @@ export type Enemy = {
   /** Short label in combat UI (e.g. Spectral, Armored). */
   traitLabel?: string;
   traitTag?: EnemyTraitTag;
+  /** Optional sprite path under /public/enemies. */
+  spriteSrc?: string;
 };
 
 export type GameState = {

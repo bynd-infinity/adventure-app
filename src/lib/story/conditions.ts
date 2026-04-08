@@ -9,6 +9,7 @@ export function storyConditionsPass(
   return conditions.every((c) => {
     if (c.type === "has_flag") return !!flags[c.key];
     if (c.type === "missing_flag") return !flags[c.key];
+    if (c.type === "has_any_flag") return c.keys.some((k) => !!flags[k]);
     return true;
   });
 }

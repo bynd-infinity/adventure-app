@@ -26,6 +26,10 @@ import {
   HAUNTED_RUN_INTRO_CARDS,
   type SceneDecisionStat,
 } from "@/config/story/hauntedHouseScenes";
+import {
+  CAMPAIGN_ROOM_BACKGROUND,
+  CAMPAIGN_ROOM_BACKGROUND_FALLBACK,
+} from "@/config/campaignAssets";
 import { getStoryScene } from "@/lib/story/engine";
 import {
   applyStandaloneMetaEffects,
@@ -150,6 +154,14 @@ const COMBAT_WIN_MID_ROOM: ResultCard = {
 
 const BASE_DAMAGE = 5;
 const DAMAGE_VARIANCE = 2;
+const UI_PULSE_MS = 280;
+const UI_SHAKE_MS = 240;
+const DECISION_LOCK_MS = 520;
+const COMBAT_TRANSITION_MS = 460;
+const COMBAT_WINDUP_MS = 170;
+const COMBAT_IMPACT_MS = 150;
+const COMBAT_ENEMY_WINDUP_MS = 210;
+const COMBAT_RESOLVE_GAP_MS = 140;
 
 const ROOM_LABELS: Record<RoomId, string> = {
   entrance_hall: "Entrance Hall",
@@ -158,15 +170,6 @@ const ROOM_LABELS: Record<RoomId, string> = {
   servants_corridor: "Servants' Corridor",
   dining_room: "Dining Room",
   boss_room: "Boss Room",
-};
-
-const ROOM_BACKGROUNDS: Record<RoomId, string> = {
-  entrance_hall: "/backgrounds/entrance-hall.png",
-  registry_gallery: "/backgrounds/entrance-hall.png",
-  library: "/backgrounds/library.png",
-  servants_corridor: "/backgrounds/dining-room.png",
-  dining_room: "/backgrounds/dining-room.png",
-  boss_room: "/backgrounds/boss-room.png",
 };
 
 const CAMPAIGN_HOOKS = [
@@ -440,12 +443,12 @@ export function GameRuntime({ initialGameState, sessionId }: GameRuntimeProps) {
 
   function triggerPulse(kind: "damage" | "clue" | "reward" | "meta") {
     setImpactPulse(kind);
-    window.setTimeout(() => setImpactPulse(null), 320);
+    window.setTimeout(() => setImpactPulse(null), UI_PULSE_MS);
   }
 
   function triggerShake() {
     setShakeScreen(true);
-    window.setTimeout(() => setShakeScreen(false), 300);
+    window.setTimeout(() => setShakeScreen(false), UI_SHAKE_MS);
   }
 
   function clearCombatImpact() {
@@ -470,12 +473,7 @@ export function GameRuntime({ initialGameState, sessionId }: GameRuntimeProps) {
     }
 
     if (room === "boss_room") {
-      return {
-        title: "Run Complete",
-        message: "The binding is broken. The house finally goes still.",
-        cta: "Return to Menu",
-        next: "run_complete",
-      };
+      return bossOutcomeCard(storyFlags);
     }
 
     return {
@@ -483,6 +481,46 @@ export function GameRuntime({ initialGameState, sessionId }: GameRuntimeProps) {
       message: "You can press onward through the haunted estate.",
       cta: "Leave Room",
       next: "room_select",
+    };
+  }
+
+  function bossOutcomeCard(flags: Record<string, boolean>): ResultCard {
+    const hook = activeHook(flags);
+    if (flags.ending_successor) {
+      return {
+        title: "Successor",
+        message:
+          hook === "hook_broken_oath"
+            ? "You take the title bound to your family line. The house accepts you."
+            : "You accept the contract and inherit the house.",
+        cta: "Return to Menu",
+        next: "run_complete",
+      };
+    }
+    if (flags.read_house_sigil && flags.registry_names_staged && flags.twist_party_listed) {
+      return {
+        title: "Severed",
+        message: "You break the contract at its true name. The house loses its claim.",
+        cta: "Return to Menu",
+        next: "run_complete",
+      };
+    }
+    if (flags.boss_seal_path) {
+      return {
+        title: "Bound Bargain",
+        message:
+          hook === "hook_debt_collector"
+            ? "You settle the claim in blood and steel. The house lets you leave."
+            : "You survive the final bargain. One clause still follows you.",
+        cta: "Return to Menu",
+        next: "run_complete",
+      };
+    }
+    return {
+      title: "Run Complete",
+      message: "The binding is broken. The house finally goes still.",
+      cta: "Return to Menu",
+      next: "run_complete",
     };
   }
 
@@ -662,7 +700,7 @@ export function GameRuntime({ initialGameState, sessionId }: GameRuntimeProps) {
         phase: "player",
         turnIndex: getFirstLivingPlayerIndex(prev) ?? 0,
       }));
-    }, 520);
+    }, COMBAT_TRANSITION_MS);
   }
 
   function applyProcessedStoryOutcome(proc: ProcessedStoryEffects): boolean {
@@ -833,14 +871,6 @@ export function GameRuntime({ initialGameState, sessionId }: GameRuntimeProps) {
       pacingAfter,
       rs,
     );
-    if (output.effects.some((e) => e.type === "add_clue")) triggerPulse("clue");
-    if (output.effects.some((e) => e.type === "damage_player")) {
-      triggerPulse("damage");
-      triggerShake();
-    }
-    if (output.effects.some((e) => e.type === "grant_reward")) triggerPulse("reward");
-    if (output.effects.some((e) => e.type === "start_combat")) triggerShake();
-
     const proc = processStoryEffects(output.effects, {
       canExitRoom: canExitNow,
       usedMetaOnceKeys: metaOnceKeysRef.current,
@@ -884,7 +914,7 @@ export function GameRuntime({ initialGameState, sessionId }: GameRuntimeProps) {
     setRoomSceneBeat((prev) => ({ ...prev, [currentRoom]: prev[currentRoom] + 1 }));
     const chooserId = hostPlayer?.id ?? activePlayer.id;
     setPendingDecision({ label: decision.label, playerId: chooserId });
-    const delayMs = 560;
+    const delayMs = DECISION_LOCK_MS;
     if (decisionResolveTimerRef.current !== null) {
       window.clearTimeout(decisionResolveTimerRef.current);
     }
@@ -1109,7 +1139,7 @@ export function GameRuntime({ initialGameState, sessionId }: GameRuntimeProps) {
     }
     setCombatResolving(true);
     setCombatBeatText(`${activePlayer.name} commits to the strike...`);
-    await waitMs(200);
+    await waitMs(COMBAT_WINDUP_MS);
 
     const attackMode = playerAttackRollMode(target);
     const { d20, d20Other, total } = rollWithStatAndMode(
@@ -1133,7 +1163,7 @@ export function GameRuntime({ initialGameState, sessionId }: GameRuntimeProps) {
             : `${activePlayer.name} hits ${target.name}.`,
     );
     if (outcome === "critical" || outcome === "strong") triggerShake();
-    await waitMs(180);
+    await waitMs(COMBAT_IMPACT_MS);
 
     const nextEnemyHp = target.hp - finalDamage;
     const encounterCleared =
@@ -1226,7 +1256,7 @@ export function GameRuntime({ initialGameState, sessionId }: GameRuntimeProps) {
     }
 
     setCombatBeatText("Enemy movement!");
-    await waitMs(240);
+    await waitMs(COMBAT_ENEMY_WINDUP_MS);
     const preEnemyState = stateAfterPlayerAttack;
     const enemyTurn = resolveAllEnemyTurns(preEnemyState);
     stateAfterPlayerAttack = enemyTurn.nextState;
@@ -1243,7 +1273,7 @@ export function GameRuntime({ initialGameState, sessionId }: GameRuntimeProps) {
     }
     setCombatBeatText(primaryEnemyLine ?? "Enemy turn resolves.");
     setGameState(stateAfterPlayerAttack);
-    await waitMs(170);
+    await waitMs(COMBAT_RESOLVE_GAP_MS);
     for (const line of enemyTurn.enemyNarrations) {
       pushNarration(line);
     }
@@ -1287,6 +1317,7 @@ export function GameRuntime({ initialGameState, sessionId }: GameRuntimeProps) {
     if (currentRoom === "boss_room") {
       const hook = activeHook(storyFlags);
       if (choiceId === "seal") {
+        setStoryFlags((prev) => ({ ...prev, boss_seal_path: true }));
         pushNarration(
           hook === "hook_debt_collector"
             ? "You invoke the claim and break the seal. The spirit answers at once."
@@ -1300,6 +1331,22 @@ export function GameRuntime({ initialGameState, sessionId }: GameRuntimeProps) {
         return;
       }
       if (choiceId === "script") {
+        const hasTrueRead =
+          storyFlags.read_house_sigil &&
+          storyFlags.registry_names_staged &&
+          storyFlags.twist_party_listed;
+        if (hasTrueRead) {
+          setStoryFlags((prev) => ({ ...prev, ending_severed: true }));
+          setResultCard({
+            title: "Severed",
+            message:
+              "You read the true sequence and cut the contract from its anchor. The chamber falls quiet.",
+            cta: "Return to Menu",
+            next: "run_complete",
+          });
+          setSceneStage("result");
+          return;
+        }
         pushNarration(
           hook === "hook_broken_oath"
             ? "You find the oath glyph and force a rewrite, but the ward still fails."
@@ -1317,11 +1364,22 @@ export function GameRuntime({ initialGameState, sessionId }: GameRuntimeProps) {
         setSceneStage("result");
         return;
       }
-      applyRiskPenaltyThenCombat(
-        "boss_room",
-        3,
-        "You touch the spirit chain. Cold fire burns you for 3 HP.",
-      );
+      const guardStat = activePlayer?.guard ?? gameState.players[0]?.guard ?? 0;
+      const roll = rollWithStatAndMode(guardStat, "normal");
+      const tier = outcomeTierFromTotal(roll.total);
+      if (tier === "strong" || tier === "critical") {
+        setStoryFlags((prev) => ({ ...prev, ending_successor: true }));
+        setResultCard({
+          title: "Successor",
+          message:
+            "You take the chain without flinching. The ring loosens and the house marks you as heir.",
+          cta: "Return to Menu",
+          next: "run_complete",
+        });
+        setSceneStage("result");
+        return;
+      }
+      applyRiskPenaltyThenCombat("boss_room", 3, "You take the chain and fail to hold it. Cold fire burns you for 3 HP.");
       return;
     }
   }
@@ -1488,7 +1546,10 @@ export function GameRuntime({ initialGameState, sessionId }: GameRuntimeProps) {
   const backgroundStyle =
     currentRoom === "boss_room"
       ? "url('/backgrounds/boss-room.png'), url('/backgrounds/entrance-hall.png')"
-      : `url('${ROOM_BACKGROUNDS[currentRoom]}')`;
+      : `url('${
+          CAMPAIGN_ROOM_BACKGROUND_FALLBACK[currentRoom] ??
+          CAMPAIGN_ROOM_BACKGROUND[currentRoom]
+        }')`;
 
   const entranceIntroScene = getStoryScene(
     hauntedHouseEntrance,

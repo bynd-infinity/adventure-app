@@ -1,4 +1,5 @@
 import type { Enemy, EnemyBehavior, EnemyTraitTag } from "@/types";
+import { ENEMY_SPRITE_BY_TEMPLATE } from "@/config/campaignAssets";
 
 /** Template definitions — not full instances; use spawn helpers for runtime enemies. */
 export type EnemyTemplate = {
@@ -12,6 +13,7 @@ export type EnemyTemplate = {
   roleLabel?: string;
   traitLabel?: string;
   traitTag?: EnemyTraitTag;
+  spriteSrc?: string;
 };
 
 export const ENEMY_TEMPLATES: Record<string, EnemyTemplate> = {
@@ -126,6 +128,7 @@ export function spawnFromTemplate(templateKey: string, instanceKey: string): Ene
     roleLabel: t.roleLabel,
     traitLabel: t.traitLabel,
     traitTag: t.traitTag,
+    spriteSrc: t.spriteSrc ?? ENEMY_SPRITE_BY_TEMPLATE[t.id],
   };
 }
 

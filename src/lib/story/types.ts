@@ -9,7 +9,8 @@ export type StoryResultNext =
 
 export type StoryCondition =
   | { type: "has_flag"; key: string }
-  | { type: "missing_flag"; key: string };
+  | { type: "missing_flag"; key: string }
+  | { type: "has_any_flag"; keys: string[] };
 
 export type StoryEffect =
   | { type: "damage_player"; amount: number }
