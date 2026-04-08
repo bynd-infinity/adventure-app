@@ -131,6 +131,10 @@ body {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .crt-screen {
+    animation: none !important;
+  }
+
   .scene-card {
     animation: none !important;
     transform: none !important;
@@ -170,6 +174,25 @@ body {
     transform: none !important;
     filter: none !important;
   }
+}
+
+.crt-screen {
+  animation: crt-flicker 6s steps(1, end) infinite;
+}
+
+.crt-scanlines {
+  background-image: repeating-linear-gradient(
+    to bottom,
+    rgba(255, 255, 255, 0.02) 0px,
+    rgba(255, 255, 255, 0.02) 1px,
+    rgba(0, 0, 0, 0.06) 2px,
+    rgba(0, 0, 0, 0.06) 3px
+  );
+  opacity: 0.22;
+}
+
+.crt-vignette {
+  box-shadow: inset 0 0 120px rgba(0, 0, 0, 0.35);
 }
 
 .scene-card {
@@ -232,6 +255,20 @@ body {
   100% {
     opacity: 1;
     transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes crt-flicker {
+  0%,
+  95%,
+  100% {
+    opacity: 1;
+  }
+  96% {
+    opacity: 0.992;
+  }
+  97% {
+    opacity: 0.998;
   }
 }
 

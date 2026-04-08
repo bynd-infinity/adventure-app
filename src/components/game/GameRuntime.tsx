@@ -156,12 +156,14 @@ const BASE_DAMAGE = 5;
 const DAMAGE_VARIANCE = 2;
 const UI_PULSE_MS = 280;
 const UI_SHAKE_MS = 240;
-const DECISION_LOCK_MS = 520;
-const COMBAT_TRANSITION_MS = 460;
-const COMBAT_WINDUP_MS = 170;
-const COMBAT_IMPACT_MS = 150;
-const COMBAT_ENEMY_WINDUP_MS = 210;
-const COMBAT_RESOLVE_GAP_MS = 140;
+type TimingProfile = {
+  decisionLockMs: number;
+  combatTransitionMs: number;
+  combatWindupMs: number;
+  combatImpactMs: number;
+  combatEnemyWindupMs: number;
+  combatResolveGapMs: number;
+};
 
 const ROOM_LABELS: Record<RoomId, string> = {
   entrance_hall: "Entrance Hall",
@@ -189,6 +191,57 @@ const CAMPAIGN_HOOKS = [
     text: "Your family seal appears in this registry. Confirm why.",
   },
 ] as const;
+
+const ROOM_TIMING_PROFILE: Record<RoomId, TimingProfile> = {
+  entrance_hall: {
+    decisionLockMs: 540,
+    combatTransitionMs: 470,
+    combatWindupMs: 180,
+    combatImpactMs: 150,
+    combatEnemyWindupMs: 220,
+    combatResolveGapMs: 150,
+  },
+  registry_gallery: {
+    decisionLockMs: 560,
+    combatTransitionMs: 480,
+    combatWindupMs: 185,
+    combatImpactMs: 160,
+    combatEnemyWindupMs: 230,
+    combatResolveGapMs: 150,
+  },
+  library: {
+    decisionLockMs: 580,
+    combatTransitionMs: 500,
+    combatWindupMs: 190,
+    combatImpactMs: 165,
+    combatEnemyWindupMs: 240,
+    combatResolveGapMs: 155,
+  },
+  servants_corridor: {
+    decisionLockMs: 520,
+    combatTransitionMs: 450,
+    combatWindupMs: 165,
+    combatImpactMs: 145,
+    combatEnemyWindupMs: 205,
+    combatResolveGapMs: 135,
+  },
+  dining_room: {
+    decisionLockMs: 560,
+    combatTransitionMs: 485,
+    combatWindupMs: 185,
+    combatImpactMs: 160,
+    combatEnemyWindupMs: 235,
+    combatResolveGapMs: 150,
+  },
+  boss_room: {
+    decisionLockMs: 620,
+    combatTransitionMs: 560,
+    combatWindupMs: 210,
+    combatImpactMs: 175,
+    combatEnemyWindupMs: 260,
+    combatResolveGapMs: 170,
+  },
+};
 
 type CampaignHookId = (typeof CAMPAIGN_HOOKS)[number]["id"];
 
@@ -700,7 +753,7 @@ export function GameRuntime({ initialGameState, sessionId }: GameRuntimeProps) {
         phase: "player",
         turnIndex: getFirstLivingPlayerIndex(prev) ?? 0,
       }));
-    }, COMBAT_TRANSITION_MS);
+    }, ROOM_TIMING_PROFILE[room].combatTransitionMs);
   }
 
   function applyProcessedStoryOutcome(proc: ProcessedStoryEffects): boolean {
@@ -914,7 +967,7 @@ export function GameRuntime({ initialGameState, sessionId }: GameRuntimeProps) {
     setRoomSceneBeat((prev) => ({ ...prev, [currentRoom]: prev[currentRoom] + 1 }));
     const chooserId = hostPlayer?.id ?? activePlayer.id;
     setPendingDecision({ label: decision.label, playerId: chooserId });
-    const delayMs = DECISION_LOCK_MS;
+    const delayMs = ROOM_TIMING_PROFILE[currentRoom].decisionLockMs;
     if (decisionResolveTimerRef.current !== null) {
       window.clearTimeout(decisionResolveTimerRef.current);
     }
@@ -1139,7 +1192,7 @@ export function GameRuntime({ initialGameState, sessionId }: GameRuntimeProps) {
     }
     setCombatResolving(true);
     setCombatBeatText(`${activePlayer.name} commits to the strike...`);
-    await waitMs(COMBAT_WINDUP_MS);
+    await waitMs(ROOM_TIMING_PROFILE[currentRoom].combatWindupMs);
 
     const attackMode = playerAttackRollMode(target);
     const { d20, d20Other, total } = rollWithStatAndMode(
@@ -1163,7 +1216,7 @@ export function GameRuntime({ initialGameState, sessionId }: GameRuntimeProps) {
             : `${activePlayer.name} hits ${target.name}.`,
     );
     if (outcome === "critical" || outcome === "strong") triggerShake();
-    await waitMs(COMBAT_IMPACT_MS);
+    await waitMs(ROOM_TIMING_PROFILE[currentRoom].combatImpactMs);
 
     const nextEnemyHp = target.hp - finalDamage;
     const encounterCleared =
@@ -1256,7 +1309,7 @@ export function GameRuntime({ initialGameState, sessionId }: GameRuntimeProps) {
     }
 
     setCombatBeatText("Enemy movement!");
-    await waitMs(COMBAT_ENEMY_WINDUP_MS);
+    await waitMs(ROOM_TIMING_PROFILE[currentRoom].combatEnemyWindupMs);
     const preEnemyState = stateAfterPlayerAttack;
     const enemyTurn = resolveAllEnemyTurns(preEnemyState);
     stateAfterPlayerAttack = enemyTurn.nextState;
@@ -1273,7 +1326,7 @@ export function GameRuntime({ initialGameState, sessionId }: GameRuntimeProps) {
     }
     setCombatBeatText(primaryEnemyLine ?? "Enemy turn resolves.");
     setGameState(stateAfterPlayerAttack);
-    await waitMs(COMBAT_RESOLVE_GAP_MS);
+    await waitMs(ROOM_TIMING_PROFILE[currentRoom].combatResolveGapMs);
     for (const line of enemyTurn.enemyNarrations) {
       pushNarration(line);
     }
@@ -1566,12 +1619,14 @@ export function GameRuntime({ initialGameState, sessionId }: GameRuntimeProps) {
 
   return (
     <div
-      className={`relative flex min-h-screen flex-1 flex-col bg-zinc-950 bg-cover bg-center bg-no-repeat text-zinc-100 ${
+      className={`crt-screen relative flex min-h-screen flex-1 flex-col bg-zinc-950 bg-cover bg-center bg-no-repeat text-zinc-100 ${
         shakeScreen ? "scene-shake" : ""
       } ${impactPulse ? `impact-pulse-${impactPulse}` : ""}`}
       style={{ backgroundImage: backgroundStyle }}
       data-story-clues={storyClues.length}
     >
+      <div className="crt-scanlines pointer-events-none absolute inset-0 z-[3]" aria-hidden />
+      <div className="crt-vignette pointer-events-none absolute inset-0 z-[4]" aria-hidden />
       <div className="pointer-events-none absolute inset-0 bg-black/40" aria-hidden />
       {pendingDecision ? (
         <div className="pointer-events-none absolute inset-0 z-[41] bg-black/35 transition-opacity duration-200" />

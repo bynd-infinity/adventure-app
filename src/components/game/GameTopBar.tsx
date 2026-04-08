@@ -13,6 +13,9 @@ export function GameTopBar({ scene, phase }: GameTopBarProps) {
         Haunted House — {sceneDisplayName(scene)} ·{" "}
         {phase === "enemy" ? "Enemy Phase" : "Player Phase"}
       </h1>
+      <p className="mt-1 text-[10px] uppercase tracking-[0.22em] text-zinc-500">
+        Linked Party Session
+      </p>
     </header>
   );
 }
