@@ -17,6 +17,8 @@ export type TimingProfile = {
   combatTransitionMs: number;
   combatWindupMs: number;
   combatImpactMs: number;
+  /** After your attack resolves — pause before the enemy telegraphs (readability). */
+  combatAfterPlayerPauseMs: number;
   combatEnemyWindupMs: number;
   combatResolveGapMs: number;
 };
@@ -30,47 +32,53 @@ export const ROOM_TIMING_PROFILE: Record<RoomId, TimingProfile> = {
     combatTransitionMs: 470,
     combatWindupMs: 180,
     combatImpactMs: 150,
-    combatEnemyWindupMs: 220,
-    combatResolveGapMs: 150,
+    combatAfterPlayerPauseMs: 420,
+    combatEnemyWindupMs: 360,
+    combatResolveGapMs: 280,
   },
   registry_gallery: {
     decisionLockMs: 560,
     combatTransitionMs: 480,
     combatWindupMs: 185,
     combatImpactMs: 160,
-    combatEnemyWindupMs: 230,
-    combatResolveGapMs: 150,
+    combatAfterPlayerPauseMs: 430,
+    combatEnemyWindupMs: 370,
+    combatResolveGapMs: 285,
   },
   library: {
     decisionLockMs: 580,
     combatTransitionMs: 500,
     combatWindupMs: 190,
     combatImpactMs: 165,
-    combatEnemyWindupMs: 240,
-    combatResolveGapMs: 155,
+    combatAfterPlayerPauseMs: 440,
+    combatEnemyWindupMs: 380,
+    combatResolveGapMs: 290,
   },
   servants_corridor: {
     decisionLockMs: 520,
     combatTransitionMs: 450,
     combatWindupMs: 165,
     combatImpactMs: 145,
-    combatEnemyWindupMs: 205,
-    combatResolveGapMs: 135,
+    combatAfterPlayerPauseMs: 400,
+    combatEnemyWindupMs: 345,
+    combatResolveGapMs: 265,
   },
   dining_room: {
     decisionLockMs: 560,
     combatTransitionMs: 485,
     combatWindupMs: 185,
     combatImpactMs: 160,
-    combatEnemyWindupMs: 235,
-    combatResolveGapMs: 150,
+    combatAfterPlayerPauseMs: 430,
+    combatEnemyWindupMs: 375,
+    combatResolveGapMs: 285,
   },
   boss_room: {
     decisionLockMs: 620,
     combatTransitionMs: 560,
     combatWindupMs: 210,
     combatImpactMs: 175,
-    combatEnemyWindupMs: 260,
-    combatResolveGapMs: 170,
+    combatAfterPlayerPauseMs: 480,
+    combatEnemyWindupMs: 400,
+    combatResolveGapMs: 310,
   },
 };

@@ -1223,6 +1223,9 @@ export function GameRuntime({
         `${combatTierPrefix("fail")} ${formatStatRollSuffixWithMode(attackMode, d20, d20Other, activePlayer.power, total)}`,
       );
       if (enemyWillAct) {
+        await waitMs(
+          ROOM_TIMING_PROFILE[currentRoom].combatAfterPlayerPauseMs,
+        );
         setBattlePlayerPhase("enemy");
         setCombatBeatText("Enemy movement!");
         await waitMs(ROOM_TIMING_PROFILE[currentRoom].combatEnemyWindupMs);
@@ -1320,6 +1323,7 @@ export function GameRuntime({
       return;
     }
 
+    await waitMs(ROOM_TIMING_PROFILE[currentRoom].combatAfterPlayerPauseMs);
     setBattlePlayerPhase("enemy");
     setCombatBeatText("Enemy movement!");
     await waitMs(ROOM_TIMING_PROFILE[currentRoom].combatEnemyWindupMs);
