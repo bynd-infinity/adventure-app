@@ -27,6 +27,7 @@ import {
 } from "@/lib/story/effects";
 import { initialRpgStatsForClass } from "@/lib/game/classStats";
 import {
+  explorationCanExitRoom,
   resolveExplorationAction,
   type ExplorationActionKind,
 } from "@/lib/game/explorationResolve";
@@ -94,6 +95,8 @@ type RoomPacingState = {
   usedSearch: boolean;
   usedInspect: boolean;
   usedListen: boolean;
+  /** Entrance: counts Search actions for important clue (letter) recovery. */
+  entranceSearchPasses: number;
 };
 
 function initialRoomPacing(): RoomPacingState {
@@ -104,11 +107,18 @@ function initialRoomPacing(): RoomPacingState {
     usedSearch: false,
     usedInspect: false,
     usedListen: false,
+    entranceSearchPasses: 0,
   };
 }
 
 function roomExitCriteriaMet(p: RoomPacingState): boolean {
-  return p.interactionCount >= 2 && (!p.combatTriggered || p.combatResolved);
+  return explorationCanExitRoom(p);
+}
+
+/** Room clear after combat: boss defeat always finishes the run; other rooms need exploration pacing. */
+function canClearRoomAfterCombat(p: RoomPacingState, room: RoomId): boolean {
+  if (room === "boss_room") return true;
+  return explorationCanExitRoom(p);
 }
 
 const COMBAT_WIN_MID_ROOM: ResultCard = {
@@ -585,6 +595,10 @@ export function GameRuntime({ initialGameState }: GameRuntimeProps) {
       usedSearch: action === "search" ? true : roomPacing.usedSearch,
       usedInspect: action === "inspect" ? true : roomPacing.usedInspect,
       usedListen: action === "listen" ? true : roomPacing.usedListen,
+      entranceSearchPasses:
+        currentRoom === "entrance_hall" && action === "search"
+          ? roomPacing.entranceSearchPasses + 1
+          : roomPacing.entranceSearchPasses,
     };
     setRoomPacing(pacingAfter);
 
@@ -698,7 +712,7 @@ export function GameRuntime({ initialGameState }: GameRuntimeProps) {
 
   function handleOpenBossBindingChoices() {
     if (currentRoom !== "boss_room" || sceneStage !== "action") return;
-    if (roomPacing.interactionCount < 2) return;
+    if (roomPacing.interactionCount < 4) return;
     setSceneStage("choice");
   }
 
@@ -911,7 +925,7 @@ export function GameRuntime({ initialGameState }: GameRuntimeProps) {
         setEntranceStorySceneId(storyCombatResumeSceneId ?? "eh_hub");
         setStoryCombatResumeSceneId(null);
       }
-      const canLeaveRoom = roomExitCriteriaMet(pacingAfterWin);
+      const canLeaveRoom = canClearRoomAfterCombat(pacingAfterWin, currentRoom);
 
       const combatMeta = applyStandaloneMetaEffects(
         [metaVillainEffects.afterFirstCombatWin],
@@ -1106,6 +1120,11 @@ export function GameRuntime({ initialGameState }: GameRuntimeProps) {
   const canLeaveExploredRoom =
     currentRoom !== "boss_room" && roomExitCriteriaMet(roomPacing);
 
+  const showExplorationPacingHint =
+    showActionLayer &&
+    currentRoom !== "boss_room" &&
+    !roomExitCriteriaMet(roomPacing);
+
   const wingCleared =
     completedRooms.includes("library") || completedRooms.includes("dining_room");
   const availableRoomOptions: { id: RoomId; label: string }[] = [];
@@ -1186,7 +1205,11 @@ export function GameRuntime({ initialGameState }: GameRuntimeProps) {
             S/I/L
             {roomPacing.usedSearch ? "1" : "0"}
             {roomPacing.usedInspect ? "1" : "0"}
-            {roomPacing.usedListen ? "1" : "0"}
+            {roomPacing.usedListen ? "1" : "0"} exit=
+            {explorationCanExitRoom(roomPacing) ? "ok" : "no"}
+            {currentRoom === "entrance_hall"
+              ? ` sch=${roomPacing.entranceSearchPasses}`
+              : ""}
           </div>
         </div>
       ) : null}
@@ -1288,7 +1311,7 @@ export function GameRuntime({ initialGameState }: GameRuntimeProps) {
                   Listen
                 </button>
               </div>
-              {currentRoom === "boss_room" && roomPacing.interactionCount >= 2 ? (
+              {currentRoom === "boss_room" && roomPacing.interactionCount >= 4 ? (
                 <button
                   type="button"
                   onClick={handleOpenBossBindingChoices}
@@ -1296,6 +1319,12 @@ export function GameRuntime({ initialGameState }: GameRuntimeProps) {
                 >
                   Face the binding
                 </button>
+              ) : null}
+              {showExplorationPacingHint ? (
+                <p className="mt-3 text-center text-[11px] leading-relaxed text-zinc-500">
+                  The space still tests you—use more than one kind of action, and give
+                  the room time before you go. Combat here must be finished first.
+                </p>
               ) : null}
               {canLeaveExploredRoom ? (
                 <button

@@ -12,12 +12,30 @@ export type ExplorationPacingContext = {
   interactionCount: number;
   combatTriggered: boolean;
   combatResolved: boolean;
+  usedSearch: boolean;
+  usedInspect: boolean;
+  usedListen: boolean;
+  /** Entrance hall: number of Search actions this visit (letter fragment recovery). */
+  entranceSearchPasses: number;
 };
 
+/** Pacing: avoid clearing rooms after one or two clicks; require breadth + depth. */
+const MIN_INTERACTIONS_BEFORE_EXIT = 4;
+const MIN_DISTINCT_ACTION_TYPES = 2;
+
+/**
+ * Exit / wing-clear eligibility: combat resolved if started, enough total actions,
+ * and at least two kinds of exploration (Search / Inspect / Listen) so the room was
+ * actually probed—not a single spammed action or one failed roll.
+ */
 export function explorationCanExitRoom(ctx: ExplorationPacingContext): boolean {
-  return (
-    ctx.interactionCount >= 2 && (!ctx.combatTriggered || ctx.combatResolved)
-  );
+  if (ctx.combatTriggered && !ctx.combatResolved) return false;
+  if (ctx.interactionCount < MIN_INTERACTIONS_BEFORE_EXIT) return false;
+  const kinds =
+    (ctx.usedSearch ? 1 : 0) +
+    (ctx.usedInspect ? 1 : 0) +
+    (ctx.usedListen ? 1 : 0);
+  return kinds >= MIN_DISTINCT_ACTION_TYPES;
 }
 
 export type ExplorationResolveOutput = {
@@ -35,6 +53,7 @@ function resolveEntrance(
   tier: OutcomeTier,
   flags: Record<string, boolean>,
   rs: string,
+  pacing: ExplorationPacingContext,
 ): ExplorationResolveOutput {
   if (action === "search") {
     if (tier === "fail") {
@@ -49,6 +68,25 @@ function resolveEntrance(
       };
     }
     if (tier === "success") {
+      /* Important clue: fragment recoverable after repeated Search (not only high tiers). */
+      if (
+        !flags.found_letter_fragment &&
+        pacing.entranceSearchPasses >= 3
+      ) {
+        return {
+          outcomeTitle: "Discovery",
+          outcomeMessage: line(
+            tier,
+            "Persistence finds a charred edge—paper wedged where the mortar cracked.",
+            rs,
+          ),
+          effects: [
+            metaVillainEffects.entranceFirstChoice,
+            { type: "set_flag", key: "found_letter_fragment" },
+            { type: "add_clue", clueId: "letter_fragment" },
+          ],
+        };
+      }
       if (!flags.searched_doorway) {
         return {
           outcomeTitle: "The doorway",
@@ -148,7 +186,9 @@ function resolveEntrance(
     const canReadSigil =
       flags.found_letter_fragment &&
       !flags.read_house_sigil &&
-      (tier === "strong" || tier === "critical");
+      (tier === "strong" ||
+        tier === "critical" ||
+        (tier === "success" && pacing.interactionCount >= 6));
     if (canReadSigil) {
       return {
         outcomeTitle: "Faded ink",
@@ -499,7 +539,7 @@ export function resolveExplorationAction(
   const exitOk = explorationCanExitRoom(pacing);
 
   if (room === "entrance_hall") {
-    return resolveEntrance(action, tier, flags, rollSuffixText);
+    return resolveEntrance(action, tier, flags, rollSuffixText, pacing);
   }
   if (room === "library") {
     return resolveLibrary(action, tier, exitOk, rollSuffixText);
