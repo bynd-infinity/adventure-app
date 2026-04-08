@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Adventure App",
-  description: "Multiplayer Adventure Engine",
+  title: "Country Squire",
+  description: "Country Squire — The Ledger of Blackglass House",
 };
 
 export default function RootLayout({

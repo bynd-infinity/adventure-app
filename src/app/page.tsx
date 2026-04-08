@@ -12,11 +12,14 @@ export default function Home() {
       <div className="relative z-10 flex min-h-screen flex-col items-center justify-center text-white">
         <main className="flex w-full max-w-2xl flex-col items-center gap-10 px-6 py-16 text-center">
           <div>
-            <h1 className="text-5xl font-semibold tracking-tight md:text-6xl">
-              Adventure App
+            <h1 className="title-joust phosphor-glow text-5xl md:text-6xl">
+              Country Squire
             </h1>
+            <p className="campaign-subtitle mt-2 text-sm text-violet-200/90 md:text-base">
+              The Ledger of Blackglass House
+            </p>
             <p className="mt-3 text-lg text-zinc-300 md:text-xl">
-              Multiplayer Adventure Engine
+              Online Party Adventure
             </p>
           </div>
           <div className="flex w-full max-w-sm flex-col gap-3">
