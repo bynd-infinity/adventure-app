@@ -61,7 +61,20 @@ import {
   normalizeGameDifficulty,
   scaleEnemiesForDifficulty,
 } from "@/config/difficulty";
-import { PLAYER_CLASSES, isValidPlayerClass } from "@/lib/lobby/constants";
+import {
+  BALM_REVIVE_HP_FRACTION,
+  CLASS_SIGNATURE_ACTION,
+  CLASS_SIGNATURE_BLURB,
+  INITIAL_RUN_SUPPLIES,
+  SUPPLY_CAPS,
+  TONIC_HEAL_FRACTION,
+  type RunSuppliesState,
+} from "@/config/runSurvival";
+import {
+  PLAYER_CLASSES,
+  isValidPlayerClass,
+  type PlayerClassId,
+} from "@/lib/lobby/constants";
 import { getStoredPlayerId } from "@/lib/lobby/storage";
 import {
   explorationCanExitRoom,
@@ -69,6 +82,7 @@ import {
   type ExplorationActionKind,
 } from "@/lib/game/explorationResolve";
 import {
+  bumpOutcomeTier,
   combineRollModes,
   combatTierPrefix,
   formatStatRollSuffixWithMode,
@@ -82,6 +96,7 @@ import { ActionBar } from "./ActionBar";
 import { JournalPanel } from "./JournalPanel";
 import { GameTopBar } from "./GameTopBar";
 import { PartyPanel } from "./PartyPanel";
+import { RunSuppliesBar } from "./RunSuppliesBar";
 import { SceneStage } from "./SceneStage";
 
 type GameRuntimeProps = {
@@ -149,6 +164,8 @@ type RoomPacingState = {
   usedListen: boolean;
   /** Entrance: counts Search actions for important clue (letter) recovery. */
   entranceSearchPasses: number;
+  /** Class signature exploration bump — once per class per room visit. */
+  signatureSpent: Partial<Record<PlayerClassId, boolean>>;
 };
 
 function initialRoomPacing(): RoomPacingState {
@@ -160,6 +177,7 @@ function initialRoomPacing(): RoomPacingState {
     usedInspect: false,
     usedListen: false,
     entranceSearchPasses: 0,
+    signatureSpent: {},
   };
 }
 
@@ -426,6 +444,9 @@ export function GameRuntime({
   const [runStartMs] = useState(() => Date.now());
   const [decisionCount, setDecisionCount] = useState(0);
   const [combatCount, setCombatCount] = useState(0);
+  const [runSupplies, setRunSupplies] = useState<RunSuppliesState>(
+    () => ({ ...INITIAL_RUN_SUPPLIES }),
+  );
   const combatTransitionTimerRef = useRef<number | null>(null);
   const decisionResolveTimerRef = useRef<number | null>(null);
 
@@ -540,13 +561,15 @@ export function GameRuntime({
     triggerPulse("reward");
     const reward = pickRandomReward();
     setGameState((prev) => {
-      const fallbackIndex = getFirstLivingPlayerIndex(prev) ?? 0;
-      let idx = prev.players.findIndex((p) => p.id === targetPlayerId);
-      if (idx < 0 || (prev.players[idx]?.hp ?? 0) <= 0) {
-        idx = fallbackIndex;
+      const fallbackIndex = getFirstLivingPlayerIndex(prev);
+      let idx = prev.players.findIndex(
+        (p) => p.id === targetPlayerId && p.hp > 0,
+      );
+      if (idx < 0) {
+        idx = fallbackIndex ?? -1;
       }
-      const target = prev.players[idx];
-      if (!target) return prev;
+      const target = idx >= 0 ? prev.players[idx] : undefined;
+      if (!target || target.hp <= 0) return prev;
       const updated = reward.apply({
         hp: target.hp,
         maxHp: target.maxHp,
@@ -838,7 +861,7 @@ export function GameRuntime({
     if (sceneStage !== "action" || choiceMode !== "room_action") return;
     if (!activePlayer) return;
 
-    const pacingAfter: RoomPacingState = {
+    const basePacing: RoomPacingState = {
       ...roomPacing,
       interactionCount: roomPacing.interactionCount + 1,
       usedSearch: action === "search" ? true : roomPacing.usedSearch,
@@ -849,7 +872,6 @@ export function GameRuntime({
           ? roomPacing.entranceSearchPasses + 1
           : roomPacing.entranceSearchPasses,
     };
-    setRoomPacing(pacingAfter);
 
     const stat =
       statOverride ??
@@ -863,18 +885,44 @@ export function GameRuntime({
       action,
       currentRoom,
       storyFlags,
-      pacingAfter,
+      basePacing,
     );
     const rollMode = combineRollModes(explorationAdv, false);
     const { d20, d20Other, total } = rollWithStatAndMode(stat, rollMode);
-    const tier = outcomeTierFromTotal(total);
-    const rs = formatStatRollSuffixWithMode(
-      rollMode,
-      d20,
-      d20Other,
-      stat,
-      total,
-    );
+    let tier = outcomeTierFromTotal(total);
+
+    let pacingAfter = basePacing;
+    let signatureSuffix = "";
+    const canUseSignature =
+      isValidPlayerClass(activePlayer.class) &&
+      action === CLASS_SIGNATURE_ACTION[activePlayer.class] &&
+      !roomPacing.signatureSpent[activePlayer.class];
+
+    if (canUseSignature) {
+      const beforeTier = tier;
+      tier = bumpOutcomeTier(tier);
+      pacingAfter = {
+        ...basePacing,
+        signatureSpent: {
+          ...basePacing.signatureSpent,
+          [activePlayer.class]: true,
+        },
+      };
+      if (tier !== beforeTier && isValidPlayerClass(activePlayer.class)) {
+        signatureSuffix = ` · ${CLASS_SIGNATURE_BLURB[activePlayer.class]}`;
+      }
+    }
+
+    setRoomPacing(pacingAfter);
+
+    const rs =
+      formatStatRollSuffixWithMode(
+        rollMode,
+        d20,
+        d20Other,
+        stat,
+        total,
+      ) + signatureSuffix;
     const canExitNow = roomExitCriteriaMet(pacingAfter);
 
     const output = resolveExplorationAction(
@@ -1269,6 +1317,16 @@ export function GameRuntime({
 
     if (encounterCleared) {
       setEncounterStatus("victory");
+      setRunSupplies((prev) => {
+        let next = { ...prev };
+        if (next.tonic < SUPPLY_CAPS.tonic && Math.random() < 0.13) {
+          next = { ...next, tonic: next.tonic + 1 };
+        }
+        if (next.revivalBalm < SUPPLY_CAPS.revivalBalm && Math.random() < 0.06) {
+          next = { ...next, revivalBalm: next.revivalBalm + 1 };
+        }
+        return next;
+      });
       const pacingAfterWin: RoomPacingState = {
         ...roomPacing,
         combatResolved: true,
@@ -1542,6 +1600,86 @@ export function GameRuntime({
     });
     setGameState(initLocalState(initialGameState));
     setNarrationLog(() => buildInitialNarrationLog(initialPresetHook));
+    setRunSupplies({ ...INITIAL_RUN_SUPPLIES });
+  }
+
+  function handleUseTonic() {
+    if (
+      sceneStage !== "combat" ||
+      encounterStatus !== "active" ||
+      combatResolving
+    ) {
+      return;
+    }
+    if (!activePlayer || activePlayer.hp <= 0) return;
+    if (runSupplies.tonic <= 0) return;
+
+    const heal = Math.max(
+      1,
+      Math.ceil(activePlayer.maxHp * TONIC_HEAL_FRACTION),
+    );
+    const pid = activePlayer.id;
+    setRunSupplies((s) => ({ ...s, tonic: s.tonic - 1 }));
+    setGameState((prev) => ({
+      ...prev,
+      players: prev.players.map((p) =>
+        p.id === pid
+          ? { ...p, hp: clampHp(Math.min(p.maxHp, p.hp + heal)) }
+          : p,
+      ),
+    }));
+    pushNarration(`${activePlayer.name} uses a tonic and recovers ${heal} HP.`);
+  }
+
+  function handleUseBalm() {
+    if (
+      sceneStage !== "combat" ||
+      encounterStatus !== "active" ||
+      combatResolving
+    ) {
+      return;
+    }
+    if (runSupplies.revivalBalm <= 0) return;
+
+    const downIdx = gameState.players.findIndex((p) => p.hp <= 0);
+    if (downIdx < 0) return;
+
+    const target = gameState.players[downIdx]!;
+    const heal = Math.max(
+      1,
+      Math.ceil(target.maxHp * BALM_REVIVE_HP_FRACTION),
+    );
+
+    setRunSupplies((s) => ({ ...s, revivalBalm: s.revivalBalm - 1 }));
+    setGameState((prev) => ({
+      ...prev,
+      players: prev.players.map((p, i) =>
+        i === downIdx ? { ...p, hp: heal } : p,
+      ),
+    }));
+    pushNarration(
+      `${target.name} is pulled back from the brink (${heal} HP).`,
+    );
+  }
+
+  function handleSanctuaryRest() {
+    if (sceneStage !== "action" || choiceMode !== "room_action") return;
+    if (pendingDecision) return;
+    if (runSupplies.sanctuaryRestCharges <= 0) return;
+
+    setRunSupplies((s) => ({
+      ...s,
+      sanctuaryRestCharges: s.sanctuaryRestCharges - 1,
+    }));
+    setGameState((prev) => ({
+      ...prev,
+      players: prev.players.map((p) =>
+        p.hp > 0 ? { ...p, hp: p.maxHp } : p,
+      ),
+    }));
+    pushNarration(
+      "Sanctuary rest: living allies steady their breathing and patch up.",
+    );
   }
 
   function handleHookSelect(hookId: (typeof CAMPAIGN_HOOKS)[number]["id"]) {
@@ -1568,6 +1706,26 @@ export function GameRuntime({
       (choiceMode === "room_action" && currentRoom === "boss_room"));
   const showResultLayer = sceneStage === "result" && !!resultCard;
   const mutedHud = !showCombatLayer;
+
+  const showRunSuppliesStrip =
+    !showCombatLayer &&
+    !showHookLayer &&
+    !showPrologueLayer &&
+    !showClassSelectLayer;
+
+  const combatItemPhaseOk =
+    sceneStage === "combat" &&
+    encounterStatus === "active" &&
+    !combatResolving;
+  const tonicButtonDisabled =
+    !combatItemPhaseOk ||
+    runSupplies.tonic <= 0 ||
+    !activePlayer ||
+    activePlayer.hp <= 0;
+  const balmButtonDisabled =
+    !combatItemPhaseOk ||
+    runSupplies.revivalBalm <= 0 ||
+    !gameState.players.some((p) => p.hp <= 0);
 
   const bossBindingChoices: { id: string; label: string }[] = [
     { id: "seal", label: "Break the seal and force contact" },
@@ -1697,6 +1855,14 @@ export function GameRuntime({
         onClose={() => setJournalOpen(false)}
         entries={discoveredJournalEntries}
       />
+      {showRunSuppliesStrip ? (
+        <RunSuppliesBar
+          supplies={runSupplies}
+          explorationMode={showActionLayer}
+          onSanctuaryRest={handleSanctuaryRest}
+          restDisabled={!!pendingDecision}
+        />
+      ) : null}
       {process.env.NODE_ENV === "development" ? (
         <DevGameTools
           currentRoom={currentRoom}
@@ -1765,6 +1931,12 @@ export function GameRuntime({
               sceneStage !== "combat" ||
               combatResolving
             }
+            tonicCount={runSupplies.tonic}
+            balmCount={runSupplies.revivalBalm}
+            onUseTonic={handleUseTonic}
+            onUseBalm={handleUseBalm}
+            tonicDisabled={tonicButtonDisabled}
+            balmDisabled={balmButtonDisabled}
           />
         </div>
 

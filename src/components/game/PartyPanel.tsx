@@ -86,6 +86,9 @@ export function PartyPanel({
                   </div>
                   <div className="text-[11px] text-zinc-400">
                     {p.class || "—"} · HP {p.hp}/{p.maxHp}
+                    {isDefeated ? (
+                      <span className="ml-1 text-rose-400/90">· Down</span>
+                    ) : null}
                   </div>
                 </div>
               </div>

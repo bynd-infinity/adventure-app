@@ -54,6 +54,15 @@ export function outcomeTierFromTotal(total: number): OutcomeTier {
   return "critical";
 }
 
+const TIER_ORDER: OutcomeTier[] = ["fail", "success", "strong", "critical"];
+
+/** Raise tier by one step (e.g. class field training); caps at critical. */
+export function bumpOutcomeTier(tier: OutcomeTier): OutcomeTier {
+  const i = TIER_ORDER.indexOf(tier);
+  if (i < 0) return tier;
+  return TIER_ORDER[Math.min(TIER_ORDER.length - 1, i + 1)]!;
+}
+
 /** Short line prepended to exploration outcomes. */
 export function explorationTierLead(tier: OutcomeTier): string {
   switch (tier) {
