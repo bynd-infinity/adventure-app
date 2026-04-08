@@ -68,7 +68,7 @@ function resolveEntrance(
         outcomeTitle: "No luck",
         outcomeMessage: line(
           tier,
-          "Your hands sweep corners and baseboards; only grit and loose varnish answer.",
+          "You check corners and trim. Nothing but dust and flaked varnish.",
           rs,
         ),
         effects: [],
@@ -84,7 +84,7 @@ function resolveEntrance(
           outcomeTitle: "Discovery",
           outcomeMessage: line(
             tier,
-            "Your fingers snag a charred corner wedged deep in cracked mortar—a stash someone missed.",
+            "You pull a burned paper edge from cracked mortar.",
             rs,
           ),
           effects: [
@@ -99,7 +99,7 @@ function resolveEntrance(
           outcomeTitle: "The doorway",
           outcomeMessage: line(
             tier,
-            "Under the arch your palms find frost where no draft should be—old wood hoards the cold.",
+            "The arch frame is cold to the touch on one narrow strip.",
             rs,
           ),
           effects: [
@@ -112,7 +112,7 @@ function resolveEntrance(
         outcomeTitle: "Search",
         outcomeMessage: line(
           tier,
-          "You pat chair rails and newel posts; nothing hidden, only splinters and stale plaster dust.",
+          "You work the rails and posts. No hidden catch.",
           rs,
         ),
         effects: [],
@@ -124,7 +124,7 @@ function resolveEntrance(
         outcomeTitle: "Discovery",
         outcomeMessage: line(
           tier,
-          "A scrap of paper yields to your nails, wedged tight where lime has split.",
+          "A paper fragment comes loose where the plaster split.",
           rs,
         ),
         effects: [
@@ -139,7 +139,7 @@ function resolveEntrance(
         outcomeTitle: "Uneasy movement",
         outcomeMessage: line(
           tier,
-          "You step toward the stairs; the risers feel wrong underfoot—cold wells up like a draft from below.",
+          "You test the stair run. Weight shifts above you.",
           rs,
         ),
         effects: [
@@ -158,7 +158,7 @@ function resolveEntrance(
         outcomeTitle: "The doorway",
         outcomeMessage: line(
           tier,
-          "You trace every seam with your knuckles—this frame has been leaned on, watched, waited at.",
+          "Wear marks on the frame show someone stood watch here often.",
           rs,
         ),
         effects: [
@@ -171,7 +171,7 @@ function resolveEntrance(
       outcomeTitle: "Search",
       outcomeMessage: line(
         tier,
-        "Another pass with hands and boots turns up nothing new—only what you already moved.",
+        "Another pass turns up nothing new.",
         rs,
       ),
       effects: [],
@@ -184,7 +184,7 @@ function resolveEntrance(
         outcomeTitle: "Inspect",
         outcomeMessage: line(
           tier,
-          "Ornament and shadow refuse to resolve into a pattern—you look away before it clicks.",
+          "The pattern slips before it resolves.",
           rs,
         ),
         effects: [],
@@ -201,7 +201,7 @@ function resolveEntrance(
         outcomeTitle: "Faded ink",
         outcomeMessage: line(
           tier,
-          "You align the fragment’s strokes with marks in the molding—the name locks into sense behind your eyes.",
+          "The fragment and molding marks align into a full name.",
           rs,
         ),
         effects: [
@@ -218,7 +218,7 @@ function resolveEntrance(
         outcomeTitle: "Inspect",
         outcomeMessage: line(
           tier,
-          "Faint scratches in the plaster echo a symbol you don’t yet have paper for—something was signed here often.",
+          "Scratches repeat one symbol. You are missing part of it.",
           rs,
         ),
         effects: [],
@@ -229,7 +229,7 @@ function resolveEntrance(
         outcomeTitle: "Inspect",
         outcomeMessage: line(
           tier,
-          "The chandelier’s geometry is wrong: one facet always catches a light that isn’t in the room.",
+          "One crystal catches light from no visible source.",
           rs,
         ),
         effects: [],
@@ -239,7 +239,7 @@ function resolveEntrance(
       outcomeTitle: "Inspect",
       outcomeMessage: line(
         tier,
-        "Moldings and mirror-glass spell a single intent: this hall was designed to be read, not merely crossed.",
+        "The hall was built to be read as much as crossed.",
         rs,
       ),
       effects: [],
@@ -252,7 +252,7 @@ function resolveEntrance(
       outcomeTitle: "Listen",
       outcomeMessage: line(
         tier,
-        "You hold your breath and hear only your pulse—whatever moves here stayed one room ahead.",
+        "You hear your own pulse and little else.",
         rs,
       ),
       effects: [],
@@ -263,7 +263,7 @@ function resolveEntrance(
       outcomeTitle: "Listen",
       outcomeMessage: line(
         tier,
-        "The house measures you back: floorboards cool, air still—you know now you’re not alone in the listening.",
+        "You catch a second rhythm in the floorboards.",
         rs,
       ),
       effects: [{ type: "set_flag", key: "entrance_listen_tuned" }],
@@ -277,7 +277,7 @@ function resolveEntrance(
         tier,
         flags.entrance_listen_tuned
           ? "You half-expected the answer—still, the chill bites, but you roll with it."
-          : "Something answers your attention with weight and cold—you’re caught flat-footed.",
+          : "Something rushes the stairwell and catches you off balance.",
         rs,
       ),
       effects: [
@@ -296,7 +296,7 @@ function resolveEntrance(
     outcomeTitle: "Listen",
     outcomeMessage: line(
       tier,
-      "Echoes return in your own rhythm—the hall is mocking your cadence.",
+      "The echo returns a beat too fast.",
       rs,
     ),
     effects: [],
@@ -318,7 +318,7 @@ function resolveLibrary(
         markRoomComplete: "library",
         completionCard: {
           title: "Library Cleared",
-          message: "You can press onward through the haunted estate.",
+          message: "You have what this room was willing to give.",
           cta: "Leave Room",
           next: "room_select",
         },
@@ -326,12 +326,12 @@ function resolveLibrary(
     }
     const detail =
       tier === "fail"
-        ? "You shake folios and work loose a drawer—only moth-wing dust and a stuck latch."
+        ? "Drawers jam and folios crumble. No immediate find."
         : tier === "success"
-          ? "Behind a warped panel you find a hollow: empty now, but finger-smudged along the edge."
+          ? "A warped panel hides a narrow cavity recently used."
           : tier === "strong"
-            ? "A false spine pivots; something heavy was shelved here until recently."
-            : "You map by touch—one shelf rides forward on hidden pins, a stash-route someone used for years.";
+            ? "A false spine pivots. Something heavy was removed in a hurry."
+            : "A shelf rides on hidden pins: a practiced stash route.";
     return {
       outcomeTitle: "Search",
       outcomeMessage: line(tier, detail, rs),
@@ -341,10 +341,10 @@ function resolveLibrary(
   if (action === "inspect") {
     if (tier === "strong" || tier === "critical") {
       return {
-        outcomeTitle: "False geometry",
+        outcomeTitle: "False Geometry",
         outcomeMessage: line(
           tier,
-          "Margins and shelf-depth don’t add up—you lever the lie. The gap answers with teeth.",
+          "Margin notes and shelf depth disagree. You pull the false back panel; something answers.",
           rs,
         ),
         effects: [
@@ -358,10 +358,10 @@ function resolveLibrary(
     }
     const detail =
       tier === "fail"
-        ? "Ciphered marginalia swims; the hand that wrote it didn’t want readers—only carriers."
+        ? "The marginal code resists quick reading."
         : tier === "success"
-          ? "Repeated symbols notch the same titles—someone indexed fear like a catalogue."
-          : "The index isn’t alphabetical; it’s ritual order. You know which volume comes next.";
+          ? "The same symbols mark the same shelf class across volumes."
+          : "The index is procedural, not alphabetical. You can predict the next volume.";
     return {
       outcomeTitle: "Inspect",
       outcomeMessage: line(tier, detail, rs),
@@ -371,12 +371,12 @@ function resolveLibrary(
   if (tier === "strong" || tier === "critical") {
     const curseHp = flags.library_listen_attuned ? 1 : 2;
     return {
-      outcomeTitle: "Vocal curse",
+        outcomeTitle: "Stack Curse",
       outcomeMessage: line(
         tier,
         flags.library_listen_attuned
-          ? "You braced for a voice in the stacks—it still cuts, but you slip the worst of it."
-          : "A curse rides a breath between shelves; it finds you before you find the mouth.",
+          ? "You brace before the whisper lands and reduce the hit."
+          : "A voice between stacks snaps a short curse at you.",
         rs,
       ),
       effects: [
@@ -391,8 +391,8 @@ function resolveLibrary(
   }
   const detail =
     tier === "fail"
-      ? "Paper lies dead; the stacks eat footfalls and return nothing."
-      : "Something scratches inside a spine—then stills when you face the row.";
+      ? "No clear movement. The stacks stay quiet."
+      : "A scrape inside one shelf stops when you turn toward it.";
   return {
     outcomeTitle: "Listen",
     outcomeMessage: line(tier, detail, rs),
@@ -418,7 +418,7 @@ function resolveDining(
         markRoomComplete: "dining_room",
         completionCard: {
           title: "Dining Room Cleared",
-          message: "You can press onward through the haunted estate.",
+          message: "You have read the room. Move on.",
           cta: "Leave Room",
           next: "room_select",
         },
@@ -426,12 +426,12 @@ function resolveDining(
     }
     const detail =
       tier === "fail"
-        ? "Sideboard drawers groan; crumbs and a bent fork—no stash, only neglect."
+        ? "Drawers stick. Cutlery and crumbs, nothing critical."
         : tier === "success"
-          ? "You lift a loose floorboard strip: wax drippings and a knife wrapped in stained linen."
+          ? "A loose board hides wax drips and wrapped steel."
           : tier === "strong"
-            ? "Behind the wainscot your knuckles find a slit—someone passed notes without sitting."
-            : "Every hiding place tells the same story: meals served to seats that were never empty.";
+            ? "A slit behind the wainscot worked as a pass slot."
+            : "Hidden points all face the same chair at the head of the table.";
     return {
       outcomeTitle: "Search",
       outcomeMessage: line(tier, detail, rs),
@@ -444,7 +444,7 @@ function resolveDining(
         outcomeTitle: "Set for something",
         outcomeMessage: line(
           tier,
-          "Placement isn’t habit—it’s binding. The chairs remember who faced the head.",
+          "Place setting order reads like protocol, not habit. Then the room reacts.",
           rs,
         ),
         effects: [
@@ -458,10 +458,10 @@ function resolveDining(
     }
     const detail =
       tier === "fail"
-        ? "Etched crests blur; the table’s symmetry feels accidental, not earned."
+        ? "Crests and seat order blur before you can confirm the pattern."
         : tier === "success"
-          ? "Knife angles aim at the empty chair—every setting agrees who was meant to break first."
-          : "You read the meal as sequence: bread, oath, blood. The room was a contract.";
+          ? "Knife angle and plate spacing assign rank across the table."
+          : "Course order and symbols imply oath, breach, and sentence.";
     return {
       outcomeTitle: "Inspect",
       outcomeMessage: line(tier, detail, rs),
@@ -475,8 +475,8 @@ function resolveDining(
       outcomeMessage: line(
         tier,
         flags.dining_listen_attuned
-          ? "The bell you heard coming still rings—but you’re already shifting, and the sting is lighter."
-          : "A tone you never struck answers your ears alone—pain follows before you can move.",
+          ? "You move before the bell tone peaks and reduce the hit."
+          : "A bell tone rings with no hand on it. Pain follows.",
         rs,
       ),
       effects: [
@@ -491,8 +491,8 @@ function resolveDining(
   }
   const detail =
     tier === "fail"
-      ? "Servants’ passages breathe once, then pretend to be walls."
-      : "Footfalls pace the pantry you can’t see—whoever serves here is still on shift.";
+      ? "Service passages stay quiet."
+      : "Footsteps track behind the pantry wall, then stop.";
   return {
     outcomeTitle: "Listen",
     outcomeMessage: line(tier, detail, rs),
@@ -500,6 +500,169 @@ function resolveDining(
       tier === "fail"
         ? []
         : [{ type: "set_flag", key: "dining_listen_attuned" }],
+  };
+}
+
+function resolveRegistry(
+  action: ExplorationActionKind,
+  tier: OutcomeTier,
+  exitOk: boolean,
+  flags: Record<string, boolean>,
+  rs: string,
+): ExplorationResolveOutput {
+  if (action === "search") {
+    const effects: StoryEffect[] = [];
+    if (exitOk) {
+      effects.push({
+        type: "grant_reward",
+        markRoomComplete: "registry_gallery",
+        completionCard: {
+          title: "Registry Gallery Cleared",
+          message: "You have mapped who was recorded here.",
+          cta: "Leave Room",
+          next: "room_select",
+        },
+      });
+    }
+    const detail =
+      tier === "fail"
+        ? "Frame backs are sealed tight."
+        : tier === "success"
+          ? "A hidden pocket behind one frame holds page scraps."
+          : tier === "strong"
+            ? "You recover trimmed signature strips and wax flakes."
+            : "You map the frame mechanism and pull the full hidden packet.";
+    if (tier === "success" || tier === "strong" || tier === "critical") {
+      effects.push({ type: "set_flag", key: "registry_packet_found" });
+    }
+    return { outcomeTitle: "Search", outcomeMessage: line(tier, detail, rs), effects };
+  }
+  if (action === "inspect") {
+    const effects: StoryEffect[] = [];
+    const detail =
+      tier === "fail"
+        ? "The names blur together before you can compare hands."
+        : tier === "success"
+          ? "Several signatures share one pen angle."
+          : tier === "strong"
+            ? "Tonight's names were copied from an older guest line."
+            : "The registry confirms it: entries were staged to guide this run.";
+    if (tier === "strong" || tier === "critical") {
+      effects.push({ type: "set_flag", key: "registry_names_staged" });
+      effects.push({ type: "add_clue", clueId: "registry_forgery" });
+    }
+    return { outcomeTitle: "Inspect", outcomeMessage: line(tier, detail, rs), effects };
+  }
+  if (tier === "strong" || tier === "critical") {
+    const hp = flags.registry_listen_attuned ? 1 : 2;
+    return {
+      outcomeTitle: "Portrait Sentry",
+      outcomeMessage: line(
+        tier,
+        flags.registry_listen_attuned
+          ? "You shift before the portrait lunge and soften the hit."
+          : "A frame snaps open and something strikes from the wall.",
+        rs,
+      ),
+      effects: [
+        { type: "damage_player", amount: hp },
+        { type: "start_combat", room: "registry_gallery", resumeSceneId: "eh_hub" },
+      ],
+    };
+  }
+  return {
+    outcomeTitle: "Listen",
+    outcomeMessage: line(
+      tier,
+      tier === "fail"
+        ? "The gallery goes quiet."
+        : "Footsteps track above you, then stop at the stair turn.",
+      rs,
+    ),
+    effects: tier === "fail" ? [] : [{ type: "set_flag", key: "registry_listen_attuned" }],
+  };
+}
+
+function resolveServants(
+  action: ExplorationActionKind,
+  tier: OutcomeTier,
+  exitOk: boolean,
+  flags: Record<string, boolean>,
+  rs: string,
+): ExplorationResolveOutput {
+  if (action === "search") {
+    const effects: StoryEffect[] = [];
+    if (exitOk) {
+      effects.push({
+        type: "grant_reward",
+        markRoomComplete: "servants_corridor",
+        completionCard: {
+          title: "Servants' Corridor Cleared",
+          message: "You traced the active service routes.",
+          cta: "Leave Room",
+          next: "room_select",
+        },
+      });
+    }
+    const detail =
+      tier === "fail"
+        ? "Supply slots are empty."
+        : tier === "success"
+          ? "A route marker is freshly scored into the plaster."
+          : tier === "strong"
+            ? "You recover route tags stamped with tonight's date."
+            : "A full route board lists your party initials in order.";
+    if (tier === "critical") {
+      effects.push({ type: "set_flag", key: "twist_party_listed" });
+      effects.push(metaVillainEffects.midpointReveal);
+      effects.push({ type: "add_clue", clueId: "party_listed_route_board" });
+    }
+    return { outcomeTitle: "Search", outcomeMessage: line(tier, detail, rs), effects };
+  }
+  if (action === "inspect") {
+    const effects: StoryEffect[] = [];
+    const detail =
+      tier === "fail"
+        ? "Duty codes remain scrambled."
+        : tier === "success"
+          ? "Codes map to room sequence and expected resistance."
+          : tier === "strong"
+            ? "The route plan names this run as a scheduled trial."
+            : "The corridor log proves the house prepared this party in advance.";
+    if (tier === "strong" || tier === "critical") {
+      effects.push({ type: "set_flag", key: "twist_party_listed" });
+      effects.push(metaVillainEffects.midpointReveal);
+      effects.push({ type: "add_clue", clueId: "party_listed_route_board" });
+    }
+    return { outcomeTitle: "Inspect", outcomeMessage: line(tier, detail, rs), effects };
+  }
+  if (tier === "strong" || tier === "critical") {
+    const hp = flags.servants_listen_attuned ? 1 : 2;
+    return {
+      outcomeTitle: "Back-hall Ambush",
+      outcomeMessage: line(
+        tier,
+        flags.servants_listen_attuned
+          ? "You hear the runner first and catch only a glancing blow."
+          : "Something cuts through the corridor blind corner and hits hard.",
+        rs,
+      ),
+      effects: [
+        { type: "damage_player", amount: hp },
+        { type: "start_combat", room: "servants_corridor", resumeSceneId: "eh_hub" },
+      ],
+    };
+  }
+  return {
+    outcomeTitle: "Listen",
+    outcomeMessage: line(
+      tier,
+      tier === "fail"
+        ? "No movement reaches the junction."
+        : "A service bell rings once, then a runner changes direction.",
+      rs,
+    ),
+    effects: tier === "fail" ? [] : [{ type: "set_flag", key: "servants_listen_attuned" }],
   };
 }
 
@@ -511,12 +674,12 @@ function resolveBoss(
   if (action === "search") {
     const detail =
       tier === "fail"
-        ? "Ash cakes your fingertips; grit hides whether the stone was ever clean."
+        ? "Ash coats the altar edge and anchor points."
         : tier === "success"
-          ? "You pocket a flake of sealing wax and a link-pin bent by strain—tactile proof someone fought the circle."
+          ? "You recover wax flakes and a bent link pin from the floor seam."
           : tier === "strong"
-            ? "Under the altar lip: hair, thread, a scrap of collar—offerings shoved out of sight."
-            : "Your hands map every anchor point: wax trails, scored iron, a groove where knees wore stone.";
+            ? "Under the altar lip: thread, hair, and torn collar cloth."
+            : "Anchor wear, iron scoring, and floor grooves show repeated use.";
     return {
       outcomeTitle: "Search",
       outcomeMessage: line(tier, detail, rs),
@@ -529,7 +692,7 @@ function resolveBoss(
         outcomeTitle: "Spirit chain",
         outcomeMessage: line(
           tier,
-          "You read the ward’s break in the links—understanding draws the binding’s attention to your skin.",
+          "You identify the ward break in the chain pattern. The binding answers directly.",
           rs,
         ),
         effects: [
@@ -544,10 +707,10 @@ function resolveBoss(
     }
     const detail =
       tier === "fail"
-        ? "Runes squirm at the corner of your eye; looking away is relief."
+        ? "The runes refuse stable focus."
         : tier === "success"
-          ? "The script whispers half-words you almost parse—ink wants a reader before a victim."
-          : "Warding syllables show their seam: one glyph repeats wrong, a deliberate flaw left to bait the curious.";
+          ? "You parse fragments of the script before it collapses into noise."
+          : "One glyph is repeated out of sequence. The flaw is intentional.";
     return {
       outcomeTitle: "Inspect",
       outcomeMessage: line(tier, detail, rs),
@@ -556,12 +719,12 @@ function resolveBoss(
   }
   const detail =
     tier === "fail"
-      ? "The hum stops when you try to place it—whatever listens doesn’t want triangulation."
+      ? "The hum cuts out when you try to locate it."
       : tier === "success"
-        ? "Weight shifts in the dark beyond the chains—someone stands where light won’t fall."
+        ? "Weight shifts just beyond the chain ring."
         : tier === "strong"
-          ? "Breath skates your nape without wind; the circle tightens a notch when you don’t flinch."
-          : "A choir of mouths shapes your name in the rafters—you hear the binding choose its next hinge.";
+          ? "Breath passes close with no air movement. The ring tightens."
+          : "Multiple voices repeat your name from different points in the room.";
   return {
     outcomeTitle: "Listen",
     outcomeMessage: line(tier, detail, rs),
@@ -584,6 +747,12 @@ export function resolveExplorationAction(
   }
   if (room === "library") {
     return resolveLibrary(action, tier, exitOk, flags, rollSuffixText);
+  }
+  if (room === "registry_gallery") {
+    return resolveRegistry(action, tier, exitOk, flags, rollSuffixText);
+  }
+  if (room === "servants_corridor") {
+    return resolveServants(action, tier, exitOk, flags, rollSuffixText);
   }
   if (room === "dining_room") {
     return resolveDining(action, tier, exitOk, flags, rollSuffixText);

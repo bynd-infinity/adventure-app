@@ -48,6 +48,28 @@ export const ENEMY_TEMPLATES: Record<string, EnemyTemplate> = {
     traitLabel: "Spectral",
     traitTag: "spectral",
   },
+  portrait_sentry: {
+    id: "portrait_sentry",
+    name: "Portrait Sentry",
+    maxHp: 11,
+    baseDamage: 6,
+    behavior: "defensive",
+    roomTags: ["registry_gallery", "watcher"],
+    roleLabel: "Frame-bound watcher",
+    traitLabel: "Defensive",
+    traitTag: "spectral",
+  },
+  service_lurker: {
+    id: "service_lurker",
+    name: "Service Lurker",
+    maxHp: 10,
+    baseDamage: 7,
+    behavior: "aggressive",
+    roomTags: ["servants_corridor", "ambush"],
+    roleLabel: "Back-hall hunter",
+    traitLabel: "Aggressive",
+    traitTag: "mundane",
+  },
   possessed_armor: {
     id: "possessed_armor",
     name: "Possessed Armor",
@@ -74,7 +96,9 @@ export const ENEMY_TEMPLATES: Record<string, EnemyTemplate> = {
 
 export type EncounterRoomId =
   | "entrance_hall"
+  | "registry_gallery"
   | "library"
+  | "servants_corridor"
   | "dining_room"
   | "boss_room";
 
@@ -175,14 +199,20 @@ export function generateEncounter(room: EncounterRoomId): Enemy[] {
   }
 
   const entrancePool = ["restless_spirit", "shadow_figure"] as const;
+  const registryPool = ["portrait_sentry", "restless_spirit"] as const;
   const libraryPool = ["shadow_figure", "restless_spirit", "cursed_doll"] as const;
+  const servantsPool = ["service_lurker", "cursed_doll", "shadow_figure"] as const;
   const diningPool = ["cursed_doll", "possessed_armor", "restless_spirit"] as const;
 
   const pool =
     room === "entrance_hall"
       ? entrancePool
+      : room === "registry_gallery"
+        ? registryPool
       : room === "library"
         ? libraryPool
+        : room === "servants_corridor"
+          ? servantsPool
         : diningPool;
 
   const twoEnemies = Math.random() < 0.42;

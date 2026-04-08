@@ -21,6 +21,8 @@ export function explorationHasAdvantage(
   if (className === "Shadow" && action === "search") {
     return (
       room === "library" ||
+      room === "registry_gallery" ||
+      room === "servants_corridor" ||
       room === "dining_room" ||
       room === "entrance_hall"
     );
@@ -30,6 +32,7 @@ export function explorationHasAdvantage(
     return (
       Boolean(flags.found_letter_fragment) ||
       room === "library" ||
+      room === "registry_gallery" ||
       room === "boss_room"
     );
   }

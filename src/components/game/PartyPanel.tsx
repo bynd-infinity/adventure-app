@@ -12,6 +12,7 @@ type PartyPanelProps = {
   activePlayerId: string | null;
   decisionLeadId?: string | null;
   recentDecisionPlayerId?: string | null;
+  damagedPlayerId?: string | null;
 };
 
 export function PartyPanel({
@@ -19,6 +20,7 @@ export function PartyPanel({
   activePlayerId,
   decisionLeadId = null,
   recentDecisionPlayerId = null,
+  damagedPlayerId = null,
 }: PartyPanelProps) {
   return (
     <section className="absolute left-3 top-16 z-20 w-[11.5rem] rounded-md border border-violet-900/40 bg-zinc-950/55 p-2.5 shadow-md backdrop-blur-sm md:left-5 md:top-20 md:w-52">
@@ -31,6 +33,7 @@ export function PartyPanel({
           const isDefeated = p.hp <= 0;
           const isDecisionLead = decisionLeadId === p.id;
           const isRecentDecider = recentDecisionPlayerId === p.id;
+          const isDamaged = damagedPlayerId === p.id;
           const portrait = characterPortraitSrc(p.class);
           return (
             <li
@@ -40,6 +43,8 @@ export function PartyPanel({
                   ? "border-zinc-800/70 bg-zinc-900/20 opacity-45"
                   : isRecentDecider
                     ? "border-violet-400/85 bg-violet-950/40 ring-1 ring-violet-400/35"
+                    : isDamaged
+                      ? "border-rose-400/85 bg-rose-950/35 ring-1 ring-rose-400/35"
                     : isActive
                     ? "border-amber-500/80 bg-amber-950/35 ring-1 ring-amber-500/30"
                     : "border-zinc-700/70 bg-zinc-950/45"

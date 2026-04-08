@@ -25,7 +25,7 @@ export function SceneStage({
         ) : null}
         <div className="min-w-0 flex-1">
           <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-400">
-            Combat Log
+            Combat Record
           </p>
           <div className="mt-2 space-y-1">
             {narrationLog.map((line, idx) => (

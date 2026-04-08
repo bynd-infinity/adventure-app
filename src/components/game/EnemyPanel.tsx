@@ -4,6 +4,8 @@ type EnemyPanelProps = {
   enemies: Enemy[];
   /** Increments when a new encounter begins; drives one-shot entrance animations. */
   encounterAnimGeneration: number;
+  hitEnemyId?: string | null;
+  hitKind?: "miss" | "hit" | "strong" | "critical" | null;
 };
 
 function enemyEntranceClasses(
@@ -28,9 +30,11 @@ function enemyEntranceClasses(
 function EnemyCard({
   enemy,
   emphasis,
+  hitKind,
 }: {
   enemy: Enemy;
   emphasis: "primary" | "secondary" | "boss";
+  hitKind?: "miss" | "hit" | "strong" | "critical" | null;
 }) {
   const isBoss = emphasis === "boss";
   const border =
@@ -48,7 +52,17 @@ function EnemyCard({
     <div
       className={`w-full rounded-2xl border bg-rose-950/30 p-6 text-center backdrop-blur-sm md:p-8 ${border} ${
         isBoss ? "ring-2 ring-amber-500/40" : ""
-      } ${entrance}${stagger}`}
+      } ${entrance}${stagger} ${
+        hitKind === "critical"
+          ? "combat-impact-critical"
+          : hitKind === "strong"
+            ? "combat-impact-strong"
+            : hitKind === "hit"
+              ? "combat-impact-hit"
+              : hitKind === "miss"
+                ? "combat-impact-miss"
+                : ""
+      }`}
     >
       <p className="text-xs font-semibold uppercase tracking-[0.24em] text-rose-300">
         {isBoss ? "Final confrontation" : emphasis === "primary" ? "Encounter target" : "Also present"}
@@ -77,7 +91,12 @@ function EnemyCard({
   );
 }
 
-export function EnemyPanel({ enemies, encounterAnimGeneration }: EnemyPanelProps) {
+export function EnemyPanel({
+  enemies,
+  encounterAnimGeneration,
+  hitEnemyId = null,
+  hitKind = null,
+}: EnemyPanelProps) {
   const living = enemies.filter((e) => e.hp > 0);
   if (living.length === 0) {
     return null;
@@ -96,6 +115,7 @@ export function EnemyPanel({ enemies, encounterAnimGeneration }: EnemyPanelProps
           key={`${primary.id}-${gen}`}
           enemy={primary}
           emphasis={hasBoss ? "boss" : "primary"}
+          hitKind={primary.id === hitEnemyId ? hitKind : null}
         />
       </section>
     );
@@ -108,6 +128,7 @@ export function EnemyPanel({ enemies, encounterAnimGeneration }: EnemyPanelProps
           key={`${primary.id}-${gen}`}
           enemy={primary}
           emphasis="primary"
+          hitKind={primary.id === hitEnemyId ? hitKind : null}
         />
       </div>
       <div className="min-w-0 flex-1 md:pt-6">
@@ -115,6 +136,7 @@ export function EnemyPanel({ enemies, encounterAnimGeneration }: EnemyPanelProps
           key={`${secondary!.id}-${gen}`}
           enemy={secondary!}
           emphasis="secondary"
+          hitKind={secondary!.id === hitEnemyId ? hitKind : null}
         />
       </div>
     </section>

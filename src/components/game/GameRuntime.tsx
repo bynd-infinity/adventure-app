@@ -19,6 +19,13 @@ import {
   hauntedHouseEntrance,
   metaVillainEffects,
 } from "@/config/story/hauntedHouse";
+import {
+  HAUNTED_ROOM_DECISIONS,
+  HAUNTED_ROOM_INTRO,
+  HAUNTED_ROOM_SCENE_PROMPTS,
+  HAUNTED_RUN_INTRO_CARDS,
+  type SceneDecisionStat,
+} from "@/config/story/hauntedHouseScenes";
 import { getStoryScene } from "@/lib/story/engine";
 import {
   applyStandaloneMetaEffects,
@@ -72,6 +79,7 @@ type LocalGameState = {
 
 type EncounterStatus = "active" | "victory" | "defeat";
 type SceneStageMode =
+  | "hook_select"
   | "prologue"
   | "class_select"
   | "intro"
@@ -83,14 +91,13 @@ type SceneStageMode =
   | "result";
 type ResultNext = StoryResultNext;
 type ChoiceMode = "room_action" | "room_select";
-type RoomId = "entrance_hall" | "library" | "dining_room" | "boss_room";
-type DecisionStat = "skill" | "mind" | "guard" | "power";
-type SceneDecision = {
-  id: string;
-  label: string;
-  action: ExplorationActionKind;
-  stat: DecisionStat;
-};
+type RoomId =
+  | "entrance_hall"
+  | "registry_gallery"
+  | "library"
+  | "servants_corridor"
+  | "dining_room"
+  | "boss_room";
 
 type ResultCard = {
   title: string;
@@ -135,8 +142,8 @@ function canClearRoomAfterCombat(p: RoomPacingState, room: RoomId): boolean {
 }
 
 const COMBAT_WIN_MID_ROOM: ResultCard = {
-  title: "Encounter Over",
-  message: "Your foes fall quiet. The space around you is not yet spent.",
+  title: "Threat Broken",
+  message: "The immediate threat is down. The room still holds answers.",
   cta: "Return to Room",
   next: "explore_more",
 };
@@ -146,136 +153,42 @@ const DAMAGE_VARIANCE = 2;
 
 const ROOM_LABELS: Record<RoomId, string> = {
   entrance_hall: "Entrance Hall",
+  registry_gallery: "Registry Gallery",
   library: "Library",
+  servants_corridor: "Servants' Corridor",
   dining_room: "Dining Room",
   boss_room: "Boss Room",
 };
 
 const ROOM_BACKGROUNDS: Record<RoomId, string> = {
   entrance_hall: "/backgrounds/entrance-hall.png",
+  registry_gallery: "/backgrounds/entrance-hall.png",
   library: "/backgrounds/library.png",
+  servants_corridor: "/backgrounds/dining-room.png",
   dining_room: "/backgrounds/dining-room.png",
   boss_room: "/backgrounds/boss-room.png",
 };
 
-const ROOM_INTRO: Record<RoomId, string> = {
-  entrance_hall: "A dying chandelier swings overhead as the haunted house exhales.",
-  library: "Tall shelves loom in silence while pages whisper in the dark.",
-  dining_room: "A long table waits beneath tarnished silver and dust-choked air.",
-  boss_room: "At the heart of the house, chains rattle around an ancient altar.",
-};
+const CAMPAIGN_HOOKS = [
+  {
+    id: "hook_debt_collector",
+    title: "Debt Collector",
+    text: "Recover a missing ledger page before dawn and settle the claim.",
+  },
+  {
+    id: "hook_missing_heir",
+    title: "Missing Heir",
+    text: "Find the heir who entered this house and never came out.",
+  },
+  {
+    id: "hook_broken_oath",
+    title: "Broken Oath",
+    text: "Your family seal appears in this registry. Confirm why.",
+  },
+] as const;
 
-const RUN_INTRO_CARDS = [
-  "Rain needles the windows as your party crosses the threshold. The house seems to notice.",
-  "A faded ledger whispers of debts unpaid, names scratched out, and one final room never left empty.",
-  "You move deeper with one rule in mind: read the house before it reads you.",
-];
+type CampaignHookId = (typeof CAMPAIGN_HOOKS)[number]["id"];
 
-const ROOM_SCENE_PROMPTS: Record<RoomId, string[]> = {
-  entrance_hall: [
-    "The chandelier sways without wind. The hall watches you choose your first move.",
-    "Cold pools around the stairs while old wood pops in the walls.",
-    "Your last move shifted the mood; the hall is waiting for your next mistake.",
-  ],
-  library: [
-    "You hear something moving behind the shelves.",
-    "A page turns in the dark where no hand should be.",
-    "The stacks settle, then one aisle goes unnaturally still.",
-  ],
-  dining_room: [
-    "Silver glints across the table, though the candles are dead.",
-    "Something passes through the servants' wall and stops behind you.",
-    "The place settings look newly arranged, as if for your arrival.",
-  ],
-  boss_room: [
-    "Chains hum around the altar. Every sound feels like a warning.",
-    "The ward circle tightens when you step near the stone.",
-    "The room is no longer hiding what waits at its center.",
-  ],
-};
-
-const ROOM_DECISIONS: Record<RoomId, SceneDecision[]> = {
-  entrance_hall: [
-    {
-      id: "check_archway",
-      label: "Check the archway and frame for hidden seams",
-      action: "search",
-      stat: "skill",
-    },
-    {
-      id: "read_markings",
-      label: "Study carvings and marks for meaning",
-      action: "inspect",
-      stat: "mind",
-    },
-    {
-      id: "listen_stairs",
-      label: "Hold still and listen toward the stairs",
-      action: "listen",
-      stat: "guard",
-    },
-  ],
-  library: [
-    {
-      id: "sweep_shelves",
-      label: "Sweep shelves and panels for hidden compartments",
-      action: "search",
-      stat: "skill",
-    },
-    {
-      id: "decode_margins",
-      label: "Decode the repeating symbols in the margins",
-      action: "inspect",
-      stat: "mind",
-    },
-    {
-      id: "track_whisper",
-      label: "Track the whisper without moving your feet",
-      action: "listen",
-      stat: "guard",
-    },
-  ],
-  dining_room: [
-    {
-      id: "check_sideboard",
-      label: "Check sideboard, floor seams, and wall trim",
-      action: "search",
-      stat: "skill",
-    },
-    {
-      id: "read_place_settings",
-      label: "Read the table layout like a ritual",
-      action: "inspect",
-      stat: "mind",
-    },
-    {
-      id: "watch_passages",
-      label: "Listen for movement in hidden service passages",
-      action: "listen",
-      stat: "guard",
-    },
-  ],
-  boss_room: [
-    {
-      id: "check_altar",
-      label: "Check altar edges and chain anchors",
-      action: "search",
-      stat: "skill",
-    },
-    {
-      id: "read_wards",
-      label: "Read the ward script for a flaw",
-      action: "inspect",
-      stat: "mind",
-    },
-    {
-      id: "listen_binding",
-      label: "Listen for where the binding strains",
-      action: "listen",
-      stat: "guard",
-    },
-  ],
-};
 
 function initLocalState(initial: GameState): LocalGameState {
   return {
@@ -382,12 +295,12 @@ function resolvePlayerAttackByTier(
 }
 
 function rewardNarrationLabel(rewardId: string): string {
-  if (rewardId === "heal_small") return "Your wounds close.";
-  if (rewardId === "hp_up") return "Vital force settles in your bones.";
-  if (rewardId === "power_up") return "You feel stronger.";
-  if (rewardId === "guard_up") return "Your body hardens.";
-  if (rewardId === "mind_up") return "Your thoughts sharpen.";
-  return "Your movements grow faster.";
+  if (rewardId === "heal_small") return "Breathing steadies; cuts close.";
+  if (rewardId === "hp_up") return "Your stamina settles at a higher mark.";
+  if (rewardId === "power_up") return "Your strikes feel heavier.";
+  if (rewardId === "guard_up") return "You brace faster under pressure.";
+  if (rewardId === "mind_up") return "Patterns resolve quicker.";
+  return "Your footing and timing improve.";
 }
 
 export function GameRuntime({ initialGameState, sessionId }: GameRuntimeProps) {
@@ -396,7 +309,7 @@ export function GameRuntime({ initialGameState, sessionId }: GameRuntimeProps) {
     initLocalState(initialGameState),
   );
   const [encounterStatus, setEncounterStatus] = useState<EncounterStatus>("active");
-  const [sceneStage, setSceneStage] = useState<SceneStageMode>("prologue");
+  const [sceneStage, setSceneStage] = useState<SceneStageMode>("hook_select");
   const [choiceMode, setChoiceMode] = useState<ChoiceMode>("room_action");
   const [currentRoom, setCurrentRoom] = useState<RoomId>("entrance_hall");
   const [completedRooms, setCompletedRooms] = useState<RoomId[]>([]);
@@ -406,7 +319,7 @@ export function GameRuntime({ initialGameState, sessionId }: GameRuntimeProps) {
       hauntedHouseEntrance,
       hauntedHouseEntrance.initialSceneId,
     );
-    return [intro?.type === "intro" ? intro.text : ROOM_INTRO.entrance_hall];
+    return [intro?.type === "intro" ? intro.text : HAUNTED_ROOM_INTRO.entrance_hall];
   });
   const [roomPacing, setRoomPacing] = useState<RoomPacingState>(initialRoomPacing);
   const [entranceStorySceneId, setEntranceStorySceneId] = useState(
@@ -434,7 +347,9 @@ export function GameRuntime({ initialGameState, sessionId }: GameRuntimeProps) {
   );
   const [roomSceneBeat, setRoomSceneBeat] = useState<Record<RoomId, number>>({
     entrance_hall: 0,
+    registry_gallery: 0,
     library: 0,
+    servants_corridor: 0,
     dining_room: 0,
     boss_room: 0,
   });
@@ -445,6 +360,13 @@ export function GameRuntime({ initialGameState, sessionId }: GameRuntimeProps) {
     playerId: string;
   } | null>(null);
   const [recentDecisionPlayerId, setRecentDecisionPlayerId] = useState<string | null>(null);
+  const [combatResolving, setCombatResolving] = useState(false);
+  const [combatBeatText, setCombatBeatText] = useState<string | null>(null);
+  const [impactEnemyId, setImpactEnemyId] = useState<string | null>(null);
+  const [impactEnemyKind, setImpactEnemyKind] = useState<
+    "miss" | "hit" | "strong" | "critical" | null
+  >(null);
+  const [impactPlayerId, setImpactPlayerId] = useState<string | null>(null);
   const [combatTransitionText, setCombatTransitionText] = useState<string | null>(null);
   const [impactPulse, setImpactPulse] = useState<"damage" | "clue" | "reward" | "meta" | null>(
     null,
@@ -505,6 +427,17 @@ export function GameRuntime({ initialGameState, sessionId }: GameRuntimeProps) {
     setNarrationLog((prev) => [line, ...prev].slice(0, 4));
   }
 
+  function activeHook(flags: Record<string, boolean>): CampaignHookId | null {
+    if (flags.hook_debt_collector) return "hook_debt_collector";
+    if (flags.hook_missing_heir) return "hook_missing_heir";
+    if (flags.hook_broken_oath) return "hook_broken_oath";
+    return null;
+  }
+
+  function waitMs(ms: number): Promise<void> {
+    return new Promise((resolve) => window.setTimeout(resolve, ms));
+  }
+
   function triggerPulse(kind: "damage" | "clue" | "reward" | "meta") {
     setImpactPulse(kind);
     window.setTimeout(() => setImpactPulse(null), 320);
@@ -515,6 +448,13 @@ export function GameRuntime({ initialGameState, sessionId }: GameRuntimeProps) {
     window.setTimeout(() => setShakeScreen(false), 300);
   }
 
+  function clearCombatImpact() {
+    setImpactEnemyId(null);
+    setImpactEnemyKind(null);
+    setImpactPlayerId(null);
+    setCombatBeatText(null);
+  }
+
   function markRoomComplete(room: RoomId) {
     setCompletedRooms((prev) => (prev.includes(room) ? prev : [...prev, room]));
   }
@@ -523,7 +463,7 @@ export function GameRuntime({ initialGameState, sessionId }: GameRuntimeProps) {
     if (room === "entrance_hall") {
       return {
         title: "Entrance Cleared",
-        message: "You survived the hall. Choose which wing to explore next.",
+        message: "The hall gives you passage. Choose a wing.",
         cta: "Leave Room",
         next: "room_select",
       };
@@ -532,7 +472,7 @@ export function GameRuntime({ initialGameState, sessionId }: GameRuntimeProps) {
     if (room === "boss_room") {
       return {
         title: "Run Complete",
-        message: "The Bound Spirit is broken. The haunted house falls silent.",
+        message: "The binding is broken. The house finally goes still.",
         cta: "Return to Menu",
         next: "run_complete",
       };
@@ -618,6 +558,8 @@ export function GameRuntime({ initialGameState, sessionId }: GameRuntimeProps) {
     setResultCard(null);
     setPendingDecision(null);
     setRecentDecisionPlayerId(null);
+    setCombatResolving(false);
+    clearCombatImpact();
     setGameState((prev) => ({
       ...prev,
       scene: room,
@@ -630,9 +572,64 @@ export function GameRuntime({ initialGameState, sessionId }: GameRuntimeProps) {
         hauntedHouseEntrance,
         hauntedHouseEntrance.initialSceneId,
       );
-      pushNarration(intro?.type === "intro" ? intro.text : ROOM_INTRO[room]);
+      pushNarration(intro?.type === "intro" ? intro.text : HAUNTED_ROOM_INTRO[room]);
     } else {
-      pushNarration(ROOM_INTRO[room]);
+      pushNarration(HAUNTED_ROOM_INTRO[room]);
+    }
+
+    if (room === "registry_gallery" && !storyFlags.registry_gallery_seen) {
+      setStoryFlags((prev) => ({ ...prev, registry_gallery_seen: true }));
+      const hook = activeHook(storyFlags);
+      const hookLine =
+        hook === "hook_debt_collector"
+          ? "A line item marked COLLECTOR is waiting at the bottom of the page."
+          : hook === "hook_missing_heir"
+            ? "The missing heir's initials are written in a different hand."
+            : hook === "hook_broken_oath"
+              ? "Your family seal appears in the margin beside tonight's date."
+              : "The open page looks staged for your arrival.";
+      setResultCard({
+        title: "Open Ledger",
+        message: `The registry is already open to tonight. Ink is still wet on names that should be old. ${hookLine}`,
+        cta: "Begin Survey",
+        next: "explore_more",
+      });
+      setSceneStage("result");
+      return;
+    }
+
+    if (room === "servants_corridor" && !storyFlags.servants_midpoint_seen) {
+      setStoryFlags((prev) => ({ ...prev, servants_midpoint_seen: true, twist_party_listed: true }));
+      setResultCard({
+        title: "Midpoint Shift",
+        message:
+          "A route board lists your party in order. This was scheduled before you arrived.",
+        cta: "Continue",
+        next: "explore_more",
+      });
+      setSceneStage("result");
+      return;
+    }
+
+    if (room === "boss_room" && !storyFlags.boss_hook_seen) {
+      const hook = activeHook(storyFlags);
+      const hookLine =
+        hook === "hook_debt_collector"
+          ? "The altar ledger includes your debt claim with a blank signature line."
+          : hook === "hook_missing_heir"
+            ? "A chair at the edge of the ring bears the heir's crest and fresh blood."
+            : hook === "hook_broken_oath"
+              ? "Your family oath text is carved into the ring anchor."
+              : "The ring includes marks tied to your party.";
+      setStoryFlags((prev) => ({ ...prev, boss_hook_seen: true }));
+      setResultCard({
+        title: "Final Chamber",
+        message: `The room confirms your hook was not chance. ${hookLine}`,
+        cta: "Take Position",
+        next: "explore_more",
+      });
+      setSceneStage("result");
+      return;
     }
   }
 
@@ -646,7 +643,7 @@ export function GameRuntime({ initialGameState, sessionId }: GameRuntimeProps) {
     } else if (room !== "entrance_hall") {
       setStoryCombatResumeSceneId(null);
     }
-    setCombatTransitionText("Danger closes in...");
+    setCombatTransitionText("Contact.");
     setSceneStage("combat_transition");
     triggerShake();
     if (combatTransitionTimerRef.current !== null) {
@@ -725,7 +722,7 @@ export function GameRuntime({ initialGameState, sessionId }: GameRuntimeProps) {
           setEncounterStatus("defeat");
           setResultCard({
             title: "Defeat",
-            message: "The room drains your final strength before battle begins.",
+            message: "You are dropped before the fight can start.",
             cta: "Retry (Soon)",
             next: "stay",
           });
@@ -864,7 +861,7 @@ export function GameRuntime({ initialGameState, sessionId }: GameRuntimeProps) {
     }
   }
 
-  function statValueForDecision(player: PlayerGameState, stat: DecisionStat): number {
+  function statValueForDecision(player: PlayerGameState, stat: SceneDecisionStat): number {
     return stat === "skill"
       ? player.skill
       : stat === "mind"
@@ -880,7 +877,7 @@ export function GameRuntime({ initialGameState, sessionId }: GameRuntimeProps) {
     if (!isHostClient) return;
     if (pendingDecision) return;
 
-    const decision = ROOM_DECISIONS[currentRoom].find((d) => d.id === decisionId);
+    const decision = HAUNTED_ROOM_DECISIONS[currentRoom].find((d) => d.id === decisionId);
     if (!decision) return;
     setPartyDecisionNote(`${hostPlayer?.name ?? "Host"} chose: ${decision.label}`);
     window.setTimeout(() => setPartyDecisionNote(null), 1200);
@@ -929,7 +926,7 @@ export function GameRuntime({ initialGameState, sessionId }: GameRuntimeProps) {
             markRoomComplete: "entrance_hall",
             completionCard: {
               title: "A Hollow Discovery",
-              message: "Nothing stirs here. Another wing calls to you.",
+              message: "The hall yields no more. Another room is waiting.",
               cta: "Leave Room",
               next: "room_select",
             },
@@ -947,6 +944,18 @@ export function GameRuntime({ initialGameState, sessionId }: GameRuntimeProps) {
     if (currentRoom === "library") {
       markRoomComplete("library");
       grantRandomRewardThenShowResult(pid, roomCompletionCard("library"));
+      return;
+    }
+
+    if (currentRoom === "registry_gallery") {
+      markRoomComplete("registry_gallery");
+      grantRandomRewardThenShowResult(pid, roomCompletionCard("registry_gallery"));
+      return;
+    }
+
+    if (currentRoom === "servants_corridor") {
+      markRoomComplete("servants_corridor");
+      grantRandomRewardThenShowResult(pid, roomCompletionCard("servants_corridor"));
       return;
     }
 
@@ -971,7 +980,7 @@ export function GameRuntime({ initialGameState, sessionId }: GameRuntimeProps) {
     if (enemyOrder.length === 0) {
       return {
         nextState: { ...stateAfterPlayers, phase: "player" },
-        enemyNarrations: ["Silence. No enemies remain."],
+        enemyNarrations: ["No hostiles remain."],
       };
     }
 
@@ -986,7 +995,7 @@ export function GameRuntime({ initialGameState, sessionId }: GameRuntimeProps) {
 
       const targetIndex = pickEnemyTargetPlayerIndex(current.players, enemy.behavior);
       if (targetIndex === null) {
-        enemyNarrations.push(`${enemy.name} finds no living target.`);
+        enemyNarrations.push(`${enemy.name} has no target.`);
         break;
       }
 
@@ -1069,8 +1078,8 @@ export function GameRuntime({ initialGameState, sessionId }: GameRuntimeProps) {
       if (livingAfterPenalty.length === 0) {
         setEncounterStatus("defeat");
         setResultCard({
-          title: "Defeat",
-          message: "The room drains your final strength before battle begins.",
+            title: "Defeat",
+            message: "You are dropped before the fight can start.",
           cta: "Retry (Soon)",
           next: "stay",
         });
@@ -1082,12 +1091,13 @@ export function GameRuntime({ initialGameState, sessionId }: GameRuntimeProps) {
     beginRoomCombat(room);
   }
 
-  function handleAttack() {
+  async function handleAttack() {
     if (
       !activePlayer ||
       gameState.phase !== "player" ||
       encounterStatus !== "active" ||
-      sceneStage !== "combat"
+      sceneStage !== "combat" ||
+      combatResolving
     ) {
       return;
     }
@@ -1097,6 +1107,9 @@ export function GameRuntime({ initialGameState, sessionId }: GameRuntimeProps) {
       pushNarration(`${activePlayer.name} lowers their weapon. No foes remain.`);
       return;
     }
+    setCombatResolving(true);
+    setCombatBeatText(`${activePlayer.name} commits to the strike...`);
+    await waitMs(200);
 
     const attackMode = playerAttackRollMode(target);
     const { d20, d20Other, total } = rollWithStatAndMode(
@@ -1108,58 +1121,53 @@ export function GameRuntime({ initialGameState, sessionId }: GameRuntimeProps) {
     const rawHit = Math.max(0, damage + activePlayer.power - 1);
     const finalDamage = applyIncomingDamageToEnemy(target, rawHit);
 
+    setImpactEnemyId(target.id);
+    setImpactEnemyKind(outcome);
+    setCombatBeatText(
+      outcome === "miss"
+        ? `${activePlayer.name} misses ${target.name}.`
+        : outcome === "critical"
+          ? `${activePlayer.name} lands a brutal hit on ${target.name}.`
+          : outcome === "strong"
+            ? `${activePlayer.name} drives ${target.name} back.`
+            : `${activePlayer.name} hits ${target.name}.`,
+    );
+    if (outcome === "critical" || outcome === "strong") triggerShake();
+    await waitMs(180);
+
     const nextEnemyHp = target.hp - finalDamage;
     const encounterCleared =
       nextEnemyHp <= 0 && getLivingEnemies(gameState).length === 1;
     const nextPlayerIndex = getNextLivingPlayerIndex(gameState, activePlayerIndex ?? 0);
     const enemyWillAct = nextPlayerIndex === null && !encounterCleared;
 
-    setGameState((prev) => {
-      const currentEnemy = getFirstLivingEnemy(prev);
-      if (!currentEnemy) return prev;
-
-      const nextHp = clampHp(currentEnemy.hp - finalDamage);
-      const nextEnemies =
-        nextHp <= 0
-          ? prev.enemies.filter((e) => e.id !== currentEnemy.id)
-          : prev.enemies.map((e) =>
-              e.id === currentEnemy.id ? { ...e, hp: nextHp } : e,
-            );
-
-      const afterPlayerAttack: LocalGameState = {
-        ...prev,
-        enemies: nextEnemies,
-        turnIndex: nextPlayerIndex ?? prev.turnIndex,
-        phase: nextPlayerIndex === null && nextEnemies.length > 0 ? "enemy" : "player",
-      };
-
-      if (afterPlayerAttack.phase === "enemy") {
-        const enemyTurn = resolveAllEnemyTurns(afterPlayerAttack);
-        for (const line of enemyTurn.enemyNarrations) {
-          pushNarration(line);
-        }
-        if (getLivingPlayers(enemyTurn.nextState).length === 0) {
-          setEncounterStatus("defeat");
-          setResultCard({
-            title: "Defeat",
-            message: "Your party has fallen in the haunted hall.",
-            cta: "Retry (Soon)",
-            next: "stay",
-          });
-          setSceneStage("result");
-        }
-        return enemyTurn.nextState;
-      }
-
-      return afterPlayerAttack;
-    });
-
-    if (enemyWillAct) return;
+    const currentEnemy = getFirstLivingEnemy(gameState);
+    if (!currentEnemy) {
+      clearCombatImpact();
+      setCombatResolving(false);
+      return;
+    }
+    const nextHp = clampHp(currentEnemy.hp - finalDamage);
+    const nextEnemies =
+      nextHp <= 0
+        ? gameState.enemies.filter((e) => e.id !== currentEnemy.id)
+        : gameState.enemies.map((e) =>
+            e.id === currentEnemy.id ? { ...e, hp: nextHp } : e,
+          );
+    let stateAfterPlayerAttack: LocalGameState = {
+      ...gameState,
+      enemies: nextEnemies,
+      turnIndex: nextPlayerIndex ?? gameState.turnIndex,
+      phase: nextPlayerIndex === null && nextEnemies.length > 0 ? "enemy" : "player",
+    };
+    setGameState(stateAfterPlayerAttack);
 
     if (outcome === "miss") {
       pushNarration(
         `${combatTierPrefix("fail")} ${formatStatRollSuffixWithMode(attackMode, d20, d20Other, activePlayer.power, total)}`,
       );
+      clearCombatImpact();
+      setCombatResolving(false);
       return;
     }
 
@@ -1199,24 +1207,58 @@ export function GameRuntime({ initialGameState, sessionId }: GameRuntimeProps) {
       } else {
         grantRandomRewardThenShowResult(activePlayer.id, COMBAT_WIN_MID_ROOM);
       }
+      clearCombatImpact();
+      setCombatResolving(false);
       return;
     }
 
-    if (outcome === "critical") {
-      pushNarration(
-        `${combatTierPrefix(tier)} ${activePlayer.name} drives a brutal strike into ${target.name} for ${finalDamage}.${formatStatRollSuffixWithMode(attackMode, d20, d20Other, activePlayer.power, total)}`,
-      );
+    const playerAttackLine =
+      outcome === "critical"
+        ? `${combatTierPrefix(tier)} ${activePlayer.name} drives a brutal strike into ${target.name} for ${finalDamage}.${formatStatRollSuffixWithMode(attackMode, d20, d20Other, activePlayer.power, total)}`
+        : outcome === "strong"
+          ? `${combatTierPrefix(tier)} ${activePlayer.name} hits ${target.name} hard for ${finalDamage}.${formatStatRollSuffixWithMode(attackMode, d20, d20Other, activePlayer.power, total)}`
+          : `${combatTierPrefix(tier)} ${activePlayer.name} hits ${target.name} for ${finalDamage}.${formatStatRollSuffixWithMode(attackMode, d20, d20Other, activePlayer.power, total)}`;
+    pushNarration(playerAttackLine);
+    if (!enemyWillAct) {
+      clearCombatImpact();
+      setCombatResolving(false);
       return;
     }
-    if (outcome === "strong") {
-      pushNarration(
-        `${combatTierPrefix(tier)} ${activePlayer.name} hits ${target.name} hard for ${finalDamage}.${formatStatRollSuffixWithMode(attackMode, d20, d20Other, activePlayer.power, total)}`,
-      );
-      return;
+
+    setCombatBeatText("Enemy movement!");
+    await waitMs(240);
+    const preEnemyState = stateAfterPlayerAttack;
+    const enemyTurn = resolveAllEnemyTurns(preEnemyState);
+    stateAfterPlayerAttack = enemyTurn.nextState;
+    const primaryEnemyLine = enemyTurn.enemyNarrations[0];
+    if (primaryEnemyLine?.includes("hits") || primaryEnemyLine?.includes("brutal")) {
+      const damaged =
+        stateAfterPlayerAttack.players.find((p, i) => {
+          const beforeHp = preEnemyState.players[i]?.hp ?? p.hp;
+          return p.hp < beforeHp;
+        })?.id ?? null;
+      setImpactPlayerId(damaged);
+      triggerPulse("damage");
+      triggerShake();
     }
-    pushNarration(
-      `${combatTierPrefix(tier)} ${activePlayer.name} hits ${target.name} for ${finalDamage}.${formatStatRollSuffixWithMode(attackMode, d20, d20Other, activePlayer.power, total)}`,
-    );
+    setCombatBeatText(primaryEnemyLine ?? "Enemy turn resolves.");
+    setGameState(stateAfterPlayerAttack);
+    await waitMs(170);
+    for (const line of enemyTurn.enemyNarrations) {
+      pushNarration(line);
+    }
+    if (getLivingPlayers(stateAfterPlayerAttack).length === 0) {
+      setEncounterStatus("defeat");
+      setResultCard({
+        title: "Defeat",
+        message: "Your party is down.",
+        cta: "Retry (Soon)",
+        next: "stay",
+      });
+      setSceneStage("result");
+    }
+    clearCombatImpact();
+    setCombatResolving(false);
   }
 
   function handleBeginExploration() {
@@ -1231,7 +1273,7 @@ export function GameRuntime({ initialGameState, sessionId }: GameRuntimeProps) {
         if (hub?.type === "action" && hub.text) {
           pushNarration(`${ROOM_LABELS.entrance_hall}: ${hub.text}`);
         } else {
-          pushNarration(`${ROOM_LABELS.entrance_hall}: choose an action.`);
+          pushNarration(`${ROOM_LABELS.entrance_hall}: choose your next move.`);
         }
         return;
       }
@@ -1243,16 +1285,32 @@ export function GameRuntime({ initialGameState, sessionId }: GameRuntimeProps) {
     if (sceneStage !== "choice" || choiceMode !== "room_action") return;
 
     if (currentRoom === "boss_room") {
+      const hook = activeHook(storyFlags);
       if (choiceId === "seal") {
-        pushNarration("You break the seal. The Bound Spirit tears free.");
+        pushNarration(
+          hook === "hook_debt_collector"
+            ? "You invoke the claim and break the seal. The spirit answers at once."
+            : hook === "hook_missing_heir"
+              ? "You call the heir's name and break the seal. The spirit answers at once."
+              : hook === "hook_broken_oath"
+                ? "You reject the family wording and break the seal. The spirit answers at once."
+                : "You break the seal. The spirit answers at once.",
+        );
         beginRoomCombat("boss_room");
         return;
       }
       if (choiceId === "script") {
-        pushNarration("The warding script is incomplete and fails to bind the spirit.");
+        pushNarration(
+          hook === "hook_broken_oath"
+            ? "You find the oath glyph and force a rewrite, but the ward still fails."
+            : "The ward script breaks at the same flawed glyph.",
+        );
         setResultCard({
           title: "Shattered Wards",
-          message: "Ancient ink flakes away. The confrontation is inevitable.",
+          message:
+            hook === "hook_missing_heir"
+              ? "The ward fails. The chamber keeps what it took."
+              : "The ward fails. There is no more delay.",
           cta: "Continue Exploring",
           next: "explore_more",
         });
@@ -1320,7 +1378,7 @@ export function GameRuntime({ initialGameState, sessionId }: GameRuntimeProps) {
     setCurrentRoom("entrance_hall");
     setChoiceMode("room_action");
     setOutcomeOverlay(null);
-    setSceneStage("prologue");
+    setSceneStage("hook_select");
     setEncounterStatus("active");
     setCompletedRooms([]);
     setRoomPacing(initialRoomPacing());
@@ -1337,13 +1395,17 @@ export function GameRuntime({ initialGameState, sessionId }: GameRuntimeProps) {
     setEncounterAnimGeneration(0);
     setPendingDecision(null);
     setRecentDecisionPlayerId(null);
+    setCombatResolving(false);
+    clearCombatImpact();
     setIntroCardIndex(0);
     setDraftClasses(
       Object.fromEntries(initialGameState.players.map((p) => [p.id, p.class ?? ""])),
     );
     setRoomSceneBeat({
       entrance_hall: 0,
+      registry_gallery: 0,
       library: 0,
+      servants_corridor: 0,
       dining_room: 0,
       boss_room: 0,
     });
@@ -1353,11 +1415,19 @@ export function GameRuntime({ initialGameState, sessionId }: GameRuntimeProps) {
         hauntedHouseEntrance,
         hauntedHouseEntrance.initialSceneId,
       );
-      return [intro?.type === "intro" ? intro.text : ROOM_INTRO.entrance_hall];
+      return [intro?.type === "intro" ? intro.text : HAUNTED_ROOM_INTRO.entrance_hall];
     });
   }
 
+  function handleHookSelect(hookId: (typeof CAMPAIGN_HOOKS)[number]["id"]) {
+    setStoryFlags((prev) => ({ ...prev, [hookId]: true }));
+    const hook = CAMPAIGN_HOOKS.find((h) => h.id === hookId);
+    if (hook) pushNarration(`Hook: ${hook.title}. ${hook.text}`);
+    setSceneStage("prologue");
+  }
+
   const showCombatLayer = sceneStage === "combat";
+  const showHookLayer = sceneStage === "hook_select";
   const showPrologueLayer = sceneStage === "prologue";
   const showClassSelectLayer = sceneStage === "class_select";
   const showIntroLayer = sceneStage === "intro";
@@ -1375,9 +1445,9 @@ export function GameRuntime({ initialGameState, sessionId }: GameRuntimeProps) {
   const mutedHud = !showCombatLayer;
 
   const bossBindingChoices: { id: string; label: string }[] = [
-    { id: "seal", label: "Break the binding seal" },
-    { id: "script", label: "Read the warding script" },
-    { id: "chain", label: "Touch the spirit chain" },
+    { id: "seal", label: "Break the seal and force contact" },
+    { id: "script", label: "Test the ward script for a valid line" },
+    { id: "chain", label: "Take the chain in hand" },
   ];
 
   const canLeaveExploredRoom =
@@ -1388,16 +1458,30 @@ export function GameRuntime({ initialGameState, sessionId }: GameRuntimeProps) {
     currentRoom !== "boss_room" &&
     !roomExitCriteriaMet(roomPacing);
 
-  const wingCleared =
-    completedRooms.includes("library") || completedRooms.includes("dining_room");
+  const investigativeWingCleared =
+    completedRooms.includes("registry_gallery") && completedRooms.includes("library");
+  const endWingCleared =
+    completedRooms.includes("servants_corridor") && completedRooms.includes("dining_room");
   const availableRoomOptions: { id: RoomId; label: string }[] = [];
+  if (!completedRooms.includes("registry_gallery")) {
+    availableRoomOptions.push({
+      id: "registry_gallery",
+      label: "Go to Registry Gallery",
+    });
+  }
   if (!completedRooms.includes("library")) {
     availableRoomOptions.push({ id: "library", label: "Go to Library" });
+  }
+  if (investigativeWingCleared && !completedRooms.includes("servants_corridor")) {
+    availableRoomOptions.push({
+      id: "servants_corridor",
+      label: "Go to Servants' Corridor",
+    });
   }
   if (!completedRooms.includes("dining_room")) {
     availableRoomOptions.push({ id: "dining_room", label: "Go to Dining Room" });
   }
-  if (wingCleared) {
+  if (endWingCleared) {
     availableRoomOptions.push({ id: "boss_room", label: "Enter Boss Room" });
   }
 
@@ -1411,7 +1495,7 @@ export function GameRuntime({ initialGameState, sessionId }: GameRuntimeProps) {
     entranceStorySceneId,
   );
   const currentScenePrompt = (() => {
-    const beats = ROOM_SCENE_PROMPTS[currentRoom];
+    const beats = HAUNTED_ROOM_SCENE_PROMPTS[currentRoom];
     const idx = Math.min(roomSceneBeat[currentRoom], beats.length - 1);
     return beats[idx] ?? "The house waits for your next choice.";
   })();
@@ -1509,6 +1593,7 @@ export function GameRuntime({ initialGameState, sessionId }: GameRuntimeProps) {
           activePlayerId={activePlayer?.id ?? null}
           decisionLeadId={showActionLayer ? (hostPlayer?.id ?? null) : null}
           recentDecisionPlayerId={recentDecisionPlayerId}
+          damagedPlayerId={impactPlayerId}
         />
 
         {showCombatLayer ? (
@@ -1517,8 +1602,17 @@ export function GameRuntime({ initialGameState, sessionId }: GameRuntimeProps) {
               <EnemyPanel
                 enemies={gameState.enemies}
                 encounterAnimGeneration={encounterAnimGeneration}
+                hitEnemyId={impactEnemyId}
+                hitKind={impactEnemyKind}
               />
             </main>
+            {combatBeatText ? (
+              <div className="pointer-events-none absolute left-1/2 top-[18%] z-[43] -translate-x-1/2 px-4">
+                <p className="combat-beat rounded-md border border-rose-700/55 bg-zinc-950/88 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.16em] text-rose-100">
+                  {combatBeatText}
+                </p>
+              </div>
+            ) : null}
             <SceneStage
               narrationLog={narrationLog}
               portraitSrc={
@@ -1541,22 +1635,47 @@ export function GameRuntime({ initialGameState, sessionId }: GameRuntimeProps) {
               getLivingEnemies(gameState).length === 0 ||
               gameState.phase !== "player" ||
               encounterStatus !== "active" ||
-              sceneStage !== "combat"
+              sceneStage !== "combat" ||
+              combatResolving
             }
           />
         </div>
+
+        {showHookLayer ? (
+          <div className="absolute inset-0 z-40 flex items-center justify-center px-4">
+            <div className="scene-card w-full max-w-3xl rounded-xl border border-amber-700/55 bg-zinc-950/90 p-6 text-center shadow-xl backdrop-blur-sm transition-all duration-300">
+              <h2 className="text-2xl font-semibold text-amber-100">Choose Your Hook</h2>
+              <p className="mt-2 text-sm text-zinc-300">
+                Why did your party enter Blackglass House?
+              </p>
+              <div className="mt-4 grid gap-2 md:grid-cols-3">
+                {CAMPAIGN_HOOKS.map((hook) => (
+                  <button
+                    key={hook.id}
+                    type="button"
+                    onClick={() => handleHookSelect(hook.id)}
+                    className="rounded-lg border border-amber-700/45 bg-zinc-900/75 px-3 py-3 text-left hover:bg-zinc-800"
+                  >
+                    <p className="text-sm font-semibold text-amber-100">{hook.title}</p>
+                    <p className="mt-1 text-xs text-zinc-300">{hook.text}</p>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        ) : null}
 
         {showPrologueLayer ? (
           <div className="absolute inset-0 z-40 flex items-center justify-center px-4">
             <div className="scene-card w-full max-w-2xl rounded-xl border border-amber-700/55 bg-zinc-950/86 p-6 text-center shadow-xl backdrop-blur-sm transition-all duration-300">
               <h2 className="text-2xl font-semibold text-amber-100">The House Opens</h2>
               <p className="mt-4 text-base leading-relaxed text-zinc-200">
-                {RUN_INTRO_CARDS[introCardIndex]}
+                {HAUNTED_RUN_INTRO_CARDS[introCardIndex]}
               </p>
               <button
                 type="button"
                 onClick={() => {
-                  if (introCardIndex < RUN_INTRO_CARDS.length - 1) {
+                  if (introCardIndex < HAUNTED_RUN_INTRO_CARDS.length - 1) {
                     setIntroCardIndex((i) => i + 1);
                     return;
                   }
@@ -1564,7 +1683,7 @@ export function GameRuntime({ initialGameState, sessionId }: GameRuntimeProps) {
                 }}
                 className="mt-5 rounded-md border border-amber-600/60 bg-amber-950/40 px-4 py-2 text-sm text-amber-100"
               >
-                {introCardIndex < RUN_INTRO_CARDS.length - 1 ? "Next Page" : "Choose Classes"}
+                {introCardIndex < HAUNTED_RUN_INTRO_CARDS.length - 1 ? "Next Page" : "Choose Classes"}
               </button>
             </div>
           </div>
@@ -1655,7 +1774,7 @@ export function GameRuntime({ initialGameState, sessionId }: GameRuntimeProps) {
               <p className="mt-3 text-sm text-zinc-300">
                 {currentRoom === "entrance_hall" && entranceIntroScene?.type === "intro"
                   ? entranceIntroScene.text
-                  : ROOM_INTRO[currentRoom]}
+                  : HAUNTED_ROOM_INTRO[currentRoom]}
               </p>
               <button
                 type="button"
@@ -1692,7 +1811,7 @@ export function GameRuntime({ initialGameState, sessionId }: GameRuntimeProps) {
                 {hostPlayer ? `${hostPlayer.name} selects for the party.` : "Make a group call."}
               </p>
               <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                {ROOM_DECISIONS[currentRoom].map((decision) => (
+                {HAUNTED_ROOM_DECISIONS[currentRoom].map((decision) => (
                   <button
                     key={decision.id}
                     type="button"
