@@ -3,15 +3,23 @@ type SceneStageProps = {
   /** Active hero portrait during combat (from /public/characters). */
   portraitSrc?: string | null;
   portraitAlt?: string;
+  /** Embedded under BattleArena instead of fixed to viewport. */
+  variant?: "default" | "embedded";
 };
 
 export function SceneStage({
   narrationLog,
   portraitSrc,
   portraitAlt,
+  variant = "default",
 }: SceneStageProps) {
+  const sectionClass =
+    variant === "embedded"
+      ? "relative z-20 mx-auto mt-1 flex w-full max-w-3xl justify-center px-3 pb-1 md:px-4"
+      : "absolute inset-x-0 bottom-24 z-20 flex justify-center px-4 md:bottom-28";
+
   return (
-    <section className="absolute inset-x-0 bottom-24 z-20 flex justify-center px-4 md:bottom-28">
+    <section className={sectionClass}>
       <div className="flex w-full max-w-3xl gap-3 rounded-lg border border-zinc-700/70 bg-zinc-950/70 p-3 shadow-lg backdrop-blur-sm">
         {portraitSrc ? (
           <div className="hidden w-[4.5rem] shrink-0 sm:block">

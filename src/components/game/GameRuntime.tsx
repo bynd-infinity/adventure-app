@@ -46,6 +46,8 @@ import {
   CAMPAIGN_ROOM_BACKGROUND_FALLBACK,
 } from "@/config/campaignAssets";
 import { DevGameTools } from "./DevGameTools";
+import { BattleArena } from "./BattleArena";
+import type { BattlePlayerPhase } from "@/lib/game/battleAnimation";
 import { getStoryScene } from "@/lib/story/engine";
 import {
   applyStandaloneMetaEffects,
@@ -71,7 +73,6 @@ import {
 import type { StoryResultNext } from "@/lib/story/types";
 import { ActionBar } from "./ActionBar";
 import { JournalPanel } from "./JournalPanel";
-import { EnemyPanel } from "./EnemyPanel";
 import { GameTopBar } from "./GameTopBar";
 import { PartyPanel } from "./PartyPanel";
 import { SceneStage } from "./SceneStage";
@@ -369,6 +370,8 @@ export function GameRuntime({ initialGameState, sessionId }: GameRuntimeProps) {
   } | null>(null);
   const [recentDecisionPlayerId, setRecentDecisionPlayerId] = useState<string | null>(null);
   const [combatResolving, setCombatResolving] = useState(false);
+  const [battlePlayerPhase, setBattlePlayerPhase] =
+    useState<BattlePlayerPhase>("idle");
   const [combatBeatText, setCombatBeatText] = useState<string | null>(null);
   const [impactEnemyId, setImpactEnemyId] = useState<string | null>(null);
   const [impactEnemyKind, setImpactEnemyKind] = useState<
@@ -421,6 +424,11 @@ export function GameRuntime({ initialGameState, sessionId }: GameRuntimeProps) {
     const t = window.setTimeout(() => setMetaNarration(null), 4200);
     return () => window.clearTimeout(t);
   }, [metaNarration]);
+
+  useEffect(() => {
+    if (sceneStage === "combat" || sceneStage === "combat_transition") return;
+    setBattlePlayerPhase("idle");
+  }, [sceneStage]);
 
   useEffect(
     () => () => {
@@ -652,6 +660,7 @@ export function GameRuntime({ initialGameState, sessionId }: GameRuntimeProps) {
     combatTransitionTimerRef.current = window.setTimeout(() => {
       const enemies = generateEncounter(room);
       setEncounterAnimGeneration((g) => g + 1);
+      setBattlePlayerPhase("idle");
       setSceneStage("combat");
       setEncounterStatus("active");
       setCombatTransitionText(null);
@@ -1101,6 +1110,7 @@ export function GameRuntime({ initialGameState, sessionId }: GameRuntimeProps) {
       return;
     }
     setCombatResolving(true);
+    setBattlePlayerPhase("windup");
     setCombatBeatText(`${activePlayer.name} commits to the strike...`);
     await waitMs(ROOM_TIMING_PROFILE[currentRoom].combatWindupMs);
 
@@ -1114,6 +1124,7 @@ export function GameRuntime({ initialGameState, sessionId }: GameRuntimeProps) {
     const rawHit = Math.max(0, damage + activePlayer.power - 1);
     const finalDamage = applyIncomingDamageToEnemy(target, rawHit);
 
+    setBattlePlayerPhase("strike");
     setImpactEnemyId(target.id);
     setImpactEnemyKind(outcome);
     setCombatBeatText(
@@ -1127,12 +1138,7 @@ export function GameRuntime({ initialGameState, sessionId }: GameRuntimeProps) {
     );
     if (outcome === "critical" || outcome === "strong") triggerShake();
     await waitMs(ROOM_TIMING_PROFILE[currentRoom].combatImpactMs);
-
-    const nextEnemyHp = target.hp - finalDamage;
-    const encounterCleared =
-      nextEnemyHp <= 0 && getLivingEnemies(gameState).length === 1;
-    const nextPlayerIndex = getNextLivingPlayerIndex(gameState, activePlayerIndex ?? 0);
-    const enemyWillAct = nextPlayerIndex === null && !encounterCleared;
+    setBattlePlayerPhase("idle");
 
     const currentEnemy = getFirstLivingEnemy(gameState);
     if (!currentEnemy) {
@@ -1147,6 +1153,10 @@ export function GameRuntime({ initialGameState, sessionId }: GameRuntimeProps) {
         : gameState.enemies.map((e) =>
             e.id === currentEnemy.id ? { ...e, hp: nextHp } : e,
           );
+    /** Must use post-hit enemy list: old check `length === 1` never fired when killing the last foe in a multi-enemy fight. */
+    const encounterCleared = nextEnemies.length === 0;
+    const nextPlayerIndex = getNextLivingPlayerIndex(gameState, activePlayerIndex ?? 0);
+    const enemyWillAct = nextPlayerIndex === null && !encounterCleared;
     let stateAfterPlayerAttack: LocalGameState = {
       ...gameState,
       enemies: nextEnemies,
@@ -1160,6 +1170,7 @@ export function GameRuntime({ initialGameState, sessionId }: GameRuntimeProps) {
         `${combatTierPrefix("fail")} ${formatStatRollSuffixWithMode(attackMode, d20, d20Other, activePlayer.power, total)}`,
       );
       clearCombatImpact();
+      setBattlePlayerPhase("idle");
       setCombatResolving(false);
       return;
     }
@@ -1201,6 +1212,7 @@ export function GameRuntime({ initialGameState, sessionId }: GameRuntimeProps) {
         grantRandomRewardThenShowResult(activePlayer.id, COMBAT_WIN_MID_ROOM);
       }
       clearCombatImpact();
+      setBattlePlayerPhase("idle");
       setCombatResolving(false);
       return;
     }
@@ -1214,10 +1226,12 @@ export function GameRuntime({ initialGameState, sessionId }: GameRuntimeProps) {
     pushNarration(playerAttackLine);
     if (!enemyWillAct) {
       clearCombatImpact();
+      setBattlePlayerPhase("idle");
       setCombatResolving(false);
       return;
     }
 
+    setBattlePlayerPhase("enemy");
     setCombatBeatText("Enemy movement!");
     await waitMs(ROOM_TIMING_PROFILE[currentRoom].combatEnemyWindupMs);
     const preEnemyState = stateAfterPlayerAttack;
@@ -1237,6 +1251,7 @@ export function GameRuntime({ initialGameState, sessionId }: GameRuntimeProps) {
     setCombatBeatText(primaryEnemyLine ?? "Enemy turn resolves.");
     setGameState(stateAfterPlayerAttack);
     await waitMs(ROOM_TIMING_PROFILE[currentRoom].combatResolveGapMs);
+    setBattlePlayerPhase("idle");
     for (const line of enemyTurn.enemyNarrations) {
       pushNarration(line);
     }
@@ -1251,6 +1266,7 @@ export function GameRuntime({ initialGameState, sessionId }: GameRuntimeProps) {
       setSceneStage("result");
     }
     clearCombatImpact();
+    setBattlePlayerPhase("idle");
     setCombatResolving(false);
   }
 
@@ -1417,6 +1433,7 @@ export function GameRuntime({ initialGameState, sessionId }: GameRuntimeProps) {
     setPendingDecision(null);
     setRecentDecisionPlayerId(null);
     setCombatResolving(false);
+    setBattlePlayerPhase("idle");
     clearCombatImpact();
     setIntroCardIndex(0);
     setDraftClasses(
@@ -1525,14 +1542,24 @@ export function GameRuntime({ initialGameState, sessionId }: GameRuntimeProps) {
   return (
     <div
       className={`crt-screen relative flex min-h-screen flex-1 flex-col bg-zinc-950 bg-cover bg-center bg-no-repeat text-zinc-100 ${
-        shakeScreen ? "scene-shake" : ""
-      } ${impactPulse ? `impact-pulse-${impactPulse}` : ""}`}
-      style={{ backgroundImage: backgroundStyle }}
+        showCombatLayer ? "combat-shell--battle-focus" : ""
+      } ${shakeScreen ? "scene-shake" : ""} ${
+        impactPulse ? `impact-pulse-${impactPulse}` : ""
+      }`}
+      style={{
+        backgroundImage: showCombatLayer ? undefined : backgroundStyle,
+      }}
       data-story-clues={storyClues.length}
     >
       <div className="crt-scanlines pointer-events-none absolute inset-0 z-[3]" aria-hidden />
       <div className="crt-vignette pointer-events-none absolute inset-0 z-[4]" aria-hidden />
       <div className="pointer-events-none absolute inset-0 bg-black/40" aria-hidden />
+      {showCombatLayer ? (
+        <div
+          className="pointer-events-none absolute inset-0 z-[6] bg-black/45"
+          aria-hidden
+        />
+      ) : null}
       {pendingDecision ? (
         <div className="pointer-events-none absolute inset-0 z-[41] bg-black/35 transition-opacity duration-200" />
       ) : null}
@@ -1597,24 +1624,37 @@ export function GameRuntime({ initialGameState, sessionId }: GameRuntimeProps) {
       ) : null}
       <div className="relative z-10 flex min-h-screen flex-1 flex-col pb-40">
         <GameTopBar scene={gameState.scene} phase={gameState.phase} />
-        <PartyPanel
-          players={gameState.players}
-          activePlayerId={activePlayer?.id ?? null}
-          decisionLeadId={showActionLayer ? (hostPlayer?.id ?? null) : null}
-          recentDecisionPlayerId={recentDecisionPlayerId}
-          damagedPlayerId={impactPlayerId}
-        />
+        {!showCombatLayer ? (
+          <PartyPanel
+            players={gameState.players}
+            activePlayerId={activePlayer?.id ?? null}
+            decisionLeadId={showActionLayer ? (hostPlayer?.id ?? null) : null}
+            recentDecisionPlayerId={recentDecisionPlayerId}
+            damagedPlayerId={impactPlayerId}
+          />
+        ) : null}
 
         {showCombatLayer ? (
           <>
-            <main className="flex flex-1 items-center justify-center overflow-x-hidden">
-              <EnemyPanel
-                enemies={gameState.enemies}
-                encounterAnimGeneration={encounterAnimGeneration}
-                hitEnemyId={impactEnemyId}
-                hitKind={impactEnemyKind}
+            <BattleArena
+              roomId={currentRoom}
+              roomLabel={ROOM_LABELS[currentRoom]}
+              players={gameState.players}
+              activePlayerId={activePlayer?.id ?? null}
+              enemies={gameState.enemies}
+              encounterAnimGeneration={encounterAnimGeneration}
+              hitEnemyId={impactEnemyId}
+              hitKind={impactEnemyKind}
+              battlePlayerPhase={battlePlayerPhase}
+              impactPlayerId={impactPlayerId}
+            >
+              <SceneStage
+                narrationLog={narrationLog}
+                portraitSrc={null}
+                portraitAlt={activePlayer?.name}
+                variant="embedded"
               />
-            </main>
+            </BattleArena>
             {combatBeatText ? (
               <div className="pointer-events-none absolute left-1/2 top-[18%] z-[43] -translate-x-1/2 px-4">
                 <p className="combat-beat rounded-md border border-rose-700/55 bg-zinc-950/88 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.16em] text-rose-100">
@@ -1622,15 +1662,6 @@ export function GameRuntime({ initialGameState, sessionId }: GameRuntimeProps) {
                 </p>
               </div>
             ) : null}
-            <SceneStage
-              narrationLog={narrationLog}
-              portraitSrc={
-                activePlayer
-                  ? characterPortraitSrc(activePlayer.class)
-                  : null
-              }
-              portraitAlt={activePlayer?.name}
-            />
           </>
         ) : (
           <main className="flex flex-1 items-center justify-center" />

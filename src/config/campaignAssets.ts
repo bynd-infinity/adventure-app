@@ -30,3 +30,15 @@ export const ENEMY_SPRITE_BY_TEMPLATE: Record<string, string> = {
   service_lurker: "/enemies/service-lurker.png",
   bound_spirit: "/enemies/bound-spirit.png",
 };
+
+/**
+ * Battle arena uses the same room art as exploration until dedicated battle plates
+ * exist under /public/backgrounds (see ASSET_GAPS.md).
+ */
+export function battleViewBackdropForRoom(room: RoomId): string {
+  return (
+    CAMPAIGN_ROOM_BACKGROUND[room] ??
+    CAMPAIGN_ROOM_BACKGROUND_FALLBACK[room] ??
+    "/backgrounds/entrance-hall.png"
+  );
+}
