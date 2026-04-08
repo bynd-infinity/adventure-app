@@ -8,11 +8,12 @@ import { join } from "node:path";
 import {
   MUSIC_LAB_PRESETS,
   SFX_LAB_PRESETS,
+  musicPresetToLayers,
 } from "../src/config/audioLabPresets";
 import {
   CHIP_SAMPLE_RATE,
+  renderMultiTrackerLoop,
   renderSfx,
-  renderTrackerLoop,
 } from "../src/lib/audio/chip8";
 import { encodeFloatToWav8Mono } from "../src/lib/audio/wavEncode";
 
@@ -42,7 +43,7 @@ for (const p of SFX_LAB_PRESETS) {
 }
 
 for (const p of MUSIC_LAB_PRESETS) {
-  const loop = renderTrackerLoop(p.steps, p.bpm, p.waveform, p.duty);
+  const loop = renderMultiTrackerLoop(musicPresetToLayers(p), p.bpm);
   const samples = concatLoops(loop, p.musicLoops);
   const wav = encodeFloatToWav8Mono(samples, CHIP_SAMPLE_RATE);
   writeFileSync(join(outDir, p.exportFile), Buffer.from(wav));

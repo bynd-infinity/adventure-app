@@ -1,3 +1,4 @@
+import { ScreenMusic } from "@/components/audio/ScreenMusic";
 import { HomeLobbyForms } from "@/components/home/HomeLobbyForms";
 
 export default function PlayPage() {
@@ -12,6 +13,7 @@ export default function PlayPage() {
       <div className="crt-vignette pointer-events-none absolute inset-0 z-[4]" aria-hidden />
       <div className="absolute inset-0 bg-black/65" aria-hidden />
       <div className="relative z-10 flex min-h-screen items-center justify-center px-6 py-12 text-white">
+        <ScreenMusic variant="lobby" />
         <main className="flex w-full max-w-4xl flex-col items-center gap-10">
           <div className="text-center">
             <h1 className="title-joust phosphor-glow text-4xl md:text-5xl">Country Squire</h1>

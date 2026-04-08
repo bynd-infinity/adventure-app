@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ScreenMusic } from "@/components/audio/ScreenMusic";
 
 export default function Home() {
   return (
@@ -10,6 +11,7 @@ export default function Home() {
     >
       <div className="absolute inset-0 bg-black/50" aria-hidden />
       <div className="relative z-10 flex min-h-screen flex-col items-center justify-center text-white">
+        <ScreenMusic variant="title" />
         <main className="flex w-full max-w-2xl flex-col items-center gap-10 px-6 py-16 text-center">
           <div>
             <h1 className="title-joust phosphor-glow text-5xl md:text-6xl">

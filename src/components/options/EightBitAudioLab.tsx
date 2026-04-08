@@ -4,16 +4,18 @@ import { useCallback, useMemo, useRef, useState } from "react";
 import {
   MUSIC_LAB_PRESETS,
   MUSIC_PRESETS_BY_ID,
+  musicPresetToLayers,
   SFX_LAB_PRESETS,
   SFX_PRESETS_BY_ID,
 } from "@/config/audioLabPresets";
 import {
   CHIP_SAMPLE_RATE,
   NOTE_OPTIONS,
+  renderMultiTrackerLoop,
   renderSfx,
-  renderTrackerLoop,
   type ChipWaveform,
   type SfxParams,
+  type TrackerLayer,
   type TrackerStep,
 } from "@/lib/audio/chip8";
 import { downloadArrayBuffer, encodeFloatToWav8Mono } from "@/lib/audio/wavEncode";
@@ -47,6 +49,19 @@ function defaultTrackerSteps(): TrackerStep[] {
   return pat;
 }
 
+function defaultTrackerLayers(): TrackerLayer[] {
+  const s = defaultTrackerSteps();
+  return [
+    { steps: [...s], waveform: "square", duty: 0.5, gain: 0.55 },
+    {
+      steps: new Array(STEPS).fill(null),
+      waveform: "triangle",
+      duty: 0.5,
+      gain: 0.42,
+    },
+  ];
+}
+
 export function EightBitAudioLab() {
   const [tab, setTab] = useState<TabId>("sfx");
   const [sfx, setSfx] = useState<SfxParams>(() =>
@@ -54,13 +69,12 @@ export function EightBitAudioLab() {
   );
   const [sfxPresetId, setSfxPresetId] = useState("ui-confirm");
   const [musicBpm, setMusicBpm] = useState(128);
-  const [musicWave, setMusicWave] = useState<ChipWaveform>("square");
-  const [musicDuty, setMusicDuty] = useState(0.5);
   const [musicLoops, setMusicLoops] = useState(2);
   const [musicPresetId, setMusicPresetId] = useState("");
-  const [trackerSteps, setTrackerSteps] = useState<TrackerStep[]>(() =>
-    defaultTrackerSteps(),
+  const [trackerLayers, setTrackerLayers] = useState<TrackerLayer[]>(() =>
+    defaultTrackerLayers(),
   );
+  const [activeLayerIndex, setActiveLayerIndex] = useState(0);
   const playingRef = useRef(false);
 
   const sfxByCategory = useMemo(() => {
@@ -106,10 +120,16 @@ export function EightBitAudioLab() {
     if (!preset) return;
     setMusicPresetId(id);
     setMusicBpm(preset.bpm);
-    setMusicWave(preset.waveform);
-    setMusicDuty(preset.duty);
     setMusicLoops(preset.musicLoops);
-    setTrackerSteps([...preset.steps]);
+    setTrackerLayers(
+      musicPresetToLayers(preset).map((L) => ({
+        steps: [...L.steps],
+        waveform: L.waveform,
+        duty: L.duty,
+        gain: L.gain,
+      })),
+    );
+    setActiveLayerIndex(0);
   }, []);
 
   const touchMusicCustom = () => setMusicPresetId("");
@@ -132,7 +152,7 @@ export function EightBitAudioLab() {
 
   const previewMusic = useCallback(() => {
     if (playingRef.current) return;
-    const loop = renderTrackerLoop(trackerSteps, musicBpm, musicWave, musicDuty);
+    const loop = renderMultiTrackerLoop(trackerLayers, musicBpm);
     let samples = loop;
     for (let i = 1; i < musicLoops; i++) {
       const merged = new Float32Array(samples.length + loop.length);
@@ -148,10 +168,10 @@ export function EightBitAudioLab() {
       },
       (1000 * samples.length) / CHIP_SAMPLE_RATE + 80,
     );
-  }, [trackerSteps, musicBpm, musicWave, musicDuty, musicLoops]);
+  }, [trackerLayers, musicBpm, musicLoops]);
 
   const exportMusic = useCallback(() => {
-    const loop = renderTrackerLoop(trackerSteps, musicBpm, musicWave, musicDuty);
+    const loop = renderMultiTrackerLoop(trackerLayers, musicBpm);
     let samples = loop;
     for (let i = 1; i < musicLoops; i++) {
       const merged = new Float32Array(samples.length + loop.length);
@@ -161,15 +181,51 @@ export function EightBitAudioLab() {
     }
     const wav = encodeFloatToWav8Mono(samples, CHIP_SAMPLE_RATE);
     downloadArrayBuffer(wav, musicDownloadName);
-  }, [trackerSteps, musicBpm, musicWave, musicDuty, musicLoops, musicDownloadName]);
+  }, [trackerLayers, musicBpm, musicLoops, musicDownloadName]);
 
-  const setStep = (index: number, freq: TrackerStep) => {
+  const activeLayer = trackerLayers[activeLayerIndex];
+
+  const setLayerStep = (layerIdx: number, stepIdx: number, freq: TrackerStep) => {
     touchMusicCustom();
-    setTrackerSteps((prev) => {
-      const next = [...prev];
-      next[index] = freq;
-      return next;
-    });
+    setTrackerLayers((prev) =>
+      prev.map((L, li) => {
+        if (li !== layerIdx) return L;
+        const steps = [...L.steps];
+        steps[stepIdx] = freq;
+        return { ...L, steps };
+      }),
+    );
+  };
+
+  const updateActiveLayer = (patch: Partial<TrackerLayer>) => {
+    touchMusicCustom();
+    setTrackerLayers((prev) =>
+      prev.map((L, i) => (i === activeLayerIndex ? { ...L, ...patch } : L)),
+    );
+  };
+
+  const addLayer = () => {
+    touchMusicCustom();
+    if (trackerLayers.length >= 4) return;
+    const newIdx = trackerLayers.length;
+    setTrackerLayers((prev) => [
+      ...prev,
+      {
+        steps: new Array(STEPS).fill(null),
+        waveform: "triangle",
+        duty: 0.5,
+        gain: 0.35,
+      },
+    ]);
+    setActiveLayerIndex(newIdx);
+  };
+
+  const removeLayer = () => {
+    if (trackerLayers.length <= 1) return;
+    touchMusicCustom();
+    const next = trackerLayers.filter((_, i) => i !== activeLayerIndex);
+    setTrackerLayers(next);
+    setActiveLayerIndex((j) => Math.min(j, next.length - 1));
   };
 
   const stepSelectIndex = (step: TrackerStep) => {
@@ -405,6 +461,48 @@ export function EightBitAudioLab() {
             </select>
           </label>
 
+          <p className="text-xs leading-relaxed text-zinc-500">
+            Stack up to <strong className="text-zinc-400">4 layers</strong> (bass + lead + noise, etc.). Each
+            layer has its own waveform, duty, mix <strong className="text-zinc-400">gain</strong>, and 16
+            steps. All layers share BPM and are summed with soft clipping — export matches preview.
+          </p>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+              Layer
+            </span>
+            {trackerLayers.map((_, i) => (
+              <button
+                key={i}
+                type="button"
+                onClick={() => setActiveLayerIndex(i)}
+                className={`rounded-md px-3 py-1.5 text-xs font-semibold ${
+                  i === activeLayerIndex
+                    ? "bg-emerald-800/60 text-emerald-100 ring-1 ring-emerald-500/50"
+                    : "bg-zinc-900 text-zinc-400 hover:bg-zinc-800"
+                }`}
+              >
+                {i + 1}
+              </button>
+            ))}
+            <button
+              type="button"
+              onClick={addLayer}
+              disabled={trackerLayers.length >= 4}
+              className="rounded-md border border-zinc-600 px-2 py-1 text-xs text-zinc-300 hover:bg-zinc-800 disabled:opacity-40"
+            >
+              + Layer
+            </button>
+            <button
+              type="button"
+              onClick={removeLayer}
+              disabled={trackerLayers.length <= 1}
+              className="rounded-md border border-zinc-600 px-2 py-1 text-xs text-zinc-300 hover:bg-zinc-800 disabled:opacity-40"
+            >
+              Remove
+            </button>
+          </div>
+
           <div className="flex flex-wrap gap-4">
             <label className="flex flex-col gap-1 text-xs text-zinc-500">
               BPM
@@ -421,14 +519,15 @@ export function EightBitAudioLab() {
               />
             </label>
             <label className="flex flex-col gap-1 text-xs text-zinc-500">
-              Waveform
+              Waveform (this layer)
               <select
                 className="rounded-md border border-zinc-700 bg-zinc-950 px-2 py-2 text-sm text-zinc-100"
-                value={musicWave}
-                onChange={(e) => {
-                  touchMusicCustom();
-                  setMusicWave(e.target.value as ChipWaveform);
-                }}
+                value={activeLayer?.waveform ?? "square"}
+                onChange={(e) =>
+                  updateActiveLayer({
+                    waveform: e.target.value as ChipWaveform,
+                  })
+                }
               >
                 <option value="square">Square</option>
                 <option value="triangle">Triangle</option>
@@ -441,11 +540,16 @@ export function EightBitAudioLab() {
               min={0.05}
               max={0.95}
               step={0.05}
-              value={musicDuty}
-              onChange={(v) => {
-                touchMusicCustom();
-                setMusicDuty(v);
-              }}
+              value={activeLayer?.duty ?? 0.5}
+              onChange={(v) => updateActiveLayer({ duty: v })}
+            />
+            <Slider
+              label="Layer gain (mix)"
+              min={0.05}
+              max={1}
+              step={0.05}
+              value={activeLayer?.gain ?? 0.5}
+              onChange={(v) => updateActiveLayer({ gain: v })}
             />
             <label className="flex flex-col gap-1 text-xs text-zinc-500">
               Loop repeats (export)
@@ -464,12 +568,11 @@ export function EightBitAudioLab() {
           </div>
 
           <p className="text-xs text-zinc-500">
-            Sixteen steps at 16th-note resolution (one bar in 4/4). Presets set BPM, waveform, default
-            export repeats, and the step pattern.
+            Editing layer {activeLayerIndex + 1} of {trackerLayers.length} — 16th notes, one bar 4/4.
           </p>
 
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 md:grid-cols-8">
-            {trackerSteps.map((step, i) => (
+            {(activeLayer?.steps ?? []).map((step, i) => (
               <label
                 key={i}
                 className="flex flex-col gap-1 rounded-lg border border-zinc-800 bg-zinc-900/80 p-2"
@@ -480,7 +583,7 @@ export function EightBitAudioLab() {
                   value={stepSelectIndex(step)}
                   onChange={(e) => {
                     const opt = NOTE_OPTIONS[Number(e.target.value)];
-                    if (opt) setStep(i, opt.freq);
+                    if (opt) setLayerStep(activeLayerIndex, i, opt.freq);
                   }}
                 >
                   {NOTE_OPTIONS.map((o, j) => (

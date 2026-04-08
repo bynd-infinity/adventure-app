@@ -91,6 +91,8 @@ import { PartyPanel } from "./PartyPanel";
 import { RunSuppliesBar } from "./RunSuppliesBar";
 import { SceneStage } from "./SceneStage";
 import { CharacterSelectLayer } from "./CharacterSelectLayer";
+import { ROOM_AMBIENT, SOUNDS } from "@/config/gameSounds";
+import { getGameAudio } from "@/lib/audio/gameAudio";
 
 type GameRuntimeProps = {
   initialGameState: GameState;
@@ -446,6 +448,8 @@ export function GameRuntime({
   );
   const combatTransitionTimerRef = useRef<number | null>(null);
   const decisionResolveTimerRef = useRef<number | null>(null);
+  const prevSceneStageAudioRef = useRef(sceneStage);
+  const prevEncounterStatusAudioRef = useRef(encounterStatus);
 
   const discoveredJournalEntries = useMemo(
     () =>
@@ -463,6 +467,7 @@ export function GameRuntime({
     const n = discoveredJournalEntries.length;
     if (n > prevJournalUnlockCountRef.current) {
       prevJournalUnlockCountRef.current = n;
+      getGameAudio()?.playSfx(SOUNDS.clueUnlock);
       const raf = requestAnimationFrame(() => {
         setJournalToast("Clue added");
       });
@@ -477,7 +482,45 @@ export function GameRuntime({
   }, [discoveredJournalEntries.length]);
 
   useEffect(() => {
+    const a = getGameAudio();
+    if (!a) return;
+    if (
+      sceneStage === "hook_select" ||
+      sceneStage === "prologue" ||
+      sceneStage === "class_select"
+    ) {
+      a.setMusic(SOUNDS.musicTitle);
+    } else if (sceneStage === "combat" || sceneStage === "combat_transition") {
+      a.setMusic(
+        currentRoom === "boss_room" ? SOUNDS.musicBoss : SOUNDS.musicCombat,
+      );
+    } else {
+      a.setMusic(ROOM_AMBIENT[currentRoom]);
+    }
+  }, [sceneStage, currentRoom]);
+
+  useEffect(() => {
+    const prev = prevSceneStageAudioRef.current;
+    prevSceneStageAudioRef.current = sceneStage;
+    if (sceneStage === "combat_transition" && prev !== "combat_transition") {
+      getGameAudio()?.playSfx(SOUNDS.combatEncounterStart);
+    }
+  }, [sceneStage]);
+
+  useEffect(() => {
+    const prev = prevEncounterStatusAudioRef.current;
+    prevEncounterStatusAudioRef.current = encounterStatus;
+    if (encounterStatus === "victory" && prev !== "victory") {
+      getGameAudio()?.playSfx(SOUNDS.combatVictory);
+    }
+    if (encounterStatus === "defeat" && prev !== "defeat") {
+      getGameAudio()?.playSfx(SOUNDS.combatDefeat);
+    }
+  }, [encounterStatus]);
+
+  useEffect(() => {
     if (!metaNarration) return;
+    getGameAudio()?.playSfx(SOUNDS.metaVillainSting);
     setImpactPulse("meta");
     const t = window.setTimeout(() => setMetaNarration(null), 4200);
     return () => window.clearTimeout(t);
@@ -887,6 +930,8 @@ export function GameRuntime({
     if (sceneStage !== "action" || choiceMode !== "room_action") return;
     if (!activePlayer) return;
 
+    getGameAudio()?.playSfx(SOUNDS.explorationRoll);
+
     const basePacing: RoomPacingState = {
       ...roomPacing,
       interactionCount: roomPacing.interactionCount + 1,
@@ -959,6 +1004,9 @@ export function GameRuntime({
       pacingAfter,
       rs,
     );
+    getGameAudio()?.playSfx(
+      tier === "fail" ? SOUNDS.explorationFail : SOUNDS.explorationSuccess,
+    );
     const proc = processStoryEffects(output.effects, {
       canExitRoom: canExitNow,
       usedMetaOnceKeys: metaOnceKeysRef.current,
@@ -997,6 +1045,7 @@ export function GameRuntime({
 
     const decision = HAUNTED_ROOM_DECISIONS[currentRoom].find((d) => d.id === decisionId);
     if (!decision) return;
+    getGameAudio()?.playSfx(SOUNDS.explorationDecisionPick);
     setDecisionCount((n) => n + 1);
     setPartyDecisionNote(`${hostPlayer?.name ?? "Host"} chose: ${decision.label}`);
     window.setTimeout(() => setPartyDecisionNote(null), 1200);
@@ -1008,6 +1057,7 @@ export function GameRuntime({
       window.clearTimeout(decisionResolveTimerRef.current);
     }
     decisionResolveTimerRef.current = window.setTimeout(() => {
+      getGameAudio()?.playSfx(SOUNDS.explorationDecisionLock);
       const stat = statValueForDecision(activePlayer, decision.stat);
       handleExplorationAction(decision.action, stat);
       setPendingDecision(null);
@@ -1253,6 +1303,7 @@ export function GameRuntime({
     const finalDamage = applyIncomingDamageToEnemy(target, scaledHit);
 
     setBattlePlayerPhase("strike");
+    getGameAudio()?.playSfx(SOUNDS.combatPlayerSwing);
     setImpactEnemyId(target.id);
     setImpactEnemyKind(outcome);
     setCombatBeatText(
@@ -1264,6 +1315,13 @@ export function GameRuntime({
             ? `${activePlayer.name} drives ${target.name} back.`
             : `${activePlayer.name} hits ${target.name}.`,
     );
+    if (outcome === "miss") {
+      getGameAudio()?.playSfx(SOUNDS.combatMiss);
+    } else if (outcome === "critical") {
+      getGameAudio()?.playSfx(SOUNDS.combatCrit);
+    } else {
+      getGameAudio()?.playSfx(SOUNDS.combatHit);
+    }
     if (outcome === "critical" || outcome === "strong") triggerShake();
     await waitMs(ROOM_TIMING_PROFILE[currentRoom].combatImpactMs);
     setBattlePlayerPhase("idle");
@@ -1302,6 +1360,7 @@ export function GameRuntime({
           ROOM_TIMING_PROFILE[currentRoom].combatAfterPlayerPauseMs,
         );
         setBattlePlayerPhase("enemy");
+        getGameAudio()?.playSfx(SOUNDS.combatEnemyWindup);
         setCombatBeatText("Enemy movement!");
         await waitMs(ROOM_TIMING_PROFILE[currentRoom].combatEnemyWindupMs);
         const preEnemyState = stateAfterPlayerAttack;
@@ -1314,6 +1373,7 @@ export function GameRuntime({
             return p.hp < beforeHp;
           })?.id ?? null;
         if (damaged) {
+          getGameAudio()?.playSfx(SOUNDS.combatEnemyHit);
           setImpactPlayerId(damaged);
           triggerPulse("damage");
           triggerShake();
@@ -1410,6 +1470,7 @@ export function GameRuntime({
 
     await waitMs(ROOM_TIMING_PROFILE[currentRoom].combatAfterPlayerPauseMs);
     setBattlePlayerPhase("enemy");
+    getGameAudio()?.playSfx(SOUNDS.combatEnemyWindup);
     setCombatBeatText("Enemy movement!");
     await waitMs(ROOM_TIMING_PROFILE[currentRoom].combatEnemyWindupMs);
     const preEnemyState = stateAfterPlayerAttack;
@@ -1422,6 +1483,7 @@ export function GameRuntime({
         return p.hp < beforeHp;
       })?.id ?? null;
     if (damaged) {
+      getGameAudio()?.playSfx(SOUNDS.combatEnemyHit);
       setImpactPlayerId(damaged);
       triggerPulse("damage");
       triggerShake();
@@ -1449,6 +1511,7 @@ export function GameRuntime({
   }
 
   function handleBeginExploration() {
+    getGameAudio()?.playSfx(SOUNDS.roomEnter);
     setChoiceMode("room_action");
     setOutcomeOverlay(null);
     setSceneStage("action");
@@ -1646,6 +1709,7 @@ export function GameRuntime({
       Math.ceil(activePlayer.maxHp * TONIC_HEAL_FRACTION),
     );
     const pid = activePlayer.id;
+    getGameAudio()?.playSfx(SOUNDS.itemTonic);
     setRunSupplies((s) => ({ ...s, tonic: s.tonic - 1 }));
     setGameState((prev) => ({
       ...prev,
@@ -1677,6 +1741,7 @@ export function GameRuntime({
       Math.ceil(target.maxHp * BALM_REVIVE_HP_FRACTION),
     );
 
+    getGameAudio()?.playSfx(SOUNDS.itemBalm);
     setRunSupplies((s) => ({ ...s, revivalBalm: s.revivalBalm - 1 }));
     setGameState((prev) => ({
       ...prev,
@@ -1694,6 +1759,7 @@ export function GameRuntime({
     if (pendingDecision) return;
     if (runSupplies.sanctuaryRestCharges <= 0) return;
 
+    getGameAudio()?.playSfx(SOUNDS.itemRest);
     setRunSupplies((s) => ({
       ...s,
       sanctuaryRestCharges: s.sanctuaryRestCharges - 1,
@@ -1710,6 +1776,7 @@ export function GameRuntime({
   }
 
   function handleHookSelect(hookId: (typeof CAMPAIGN_HOOKS)[number]["id"]) {
+    getGameAudio()?.playSfx(SOUNDS.uiConfirm);
     setStoryFlags((prev) => ({ ...prev, [hookId]: true }));
     const hook = CAMPAIGN_HOOKS.find((h) => h.id === hookId);
     if (hook) pushNarration(`Hook: ${hook.title}. ${hook.text}`);

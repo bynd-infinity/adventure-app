@@ -128,49 +128,81 @@ export function renderSfx(params: SfxParams): Float32Array {
 /** One tracker step: frequency Hz or null for rest. */
 export type TrackerStep = number | null;
 
+/**
+ * One voice in the step sequencer. Stack multiple layers for bass + lead + noise / pads.
+ * All layers must use the same `steps.length` (one shared grid).
+ */
+export type TrackerLayer = {
+  steps: TrackerStep[];
+  waveform: ChipWaveform;
+  duty: number;
+  /** 0..1 mix weight for this layer */
+  gain: number;
+};
+
+/**
+ * Mix several monophonic patterns at the same BPM (16th-note grid). Phases reset each step
+ * to match the legacy single-track behavior; output is soft-clipped.
+ */
+export function renderMultiTrackerLoop(
+  layers: TrackerLayer[],
+  bpm: number,
+): Float32Array {
+  if (layers.length === 0) return new Float32Array(0);
+
+  const sr = CHIP_SAMPLE_RATE;
+  const stepSec = (60 / bpm) / 4;
+  const stepSamples = Math.max(1, Math.floor(stepSec * sr));
+  const numSteps = layers[0]!.steps.length;
+  for (const L of layers) {
+    if (L.steps.length !== numSteps) {
+      throw new Error("All tracker layers must have the same number of steps.");
+    }
+  }
+
+  const fadeIn = Math.min(32, Math.floor(stepSamples * 0.02));
+  const fadeOut = Math.min(64, Math.floor(stepSamples * 0.04));
+  const out = new Float32Array(numSteps * stepSamples);
+  const noiseStates = layers.map((_, t) => ({ seed: 0x5eed + t * 741 }));
+
+  let writeOffset = 0;
+  for (let si = 0; si < numSteps; si++) {
+    const phase = layers.map(() => 0);
+    for (let i = 0; i < stepSamples; i++) {
+      let acc = 0;
+      for (let t = 0; t < layers.length; t++) {
+        const tr = layers[t]!;
+        const f = tr.steps[si];
+        if (f == null || f <= 0) continue;
+        phase[t] += f / sr;
+        if (phase[t] > 1e6) phase[t] %= 1;
+        let env = 1;
+        if (i < fadeIn && fadeIn > 0) env = i / fadeIn;
+        const ri = stepSamples - 1 - i;
+        if (ri < fadeOut && fadeOut > 0) env *= ri / fadeOut;
+        const raw = oscSample(
+          tr.waveform,
+          phase[t]!,
+          tr.duty,
+          noiseStates[t]!,
+        );
+        acc += raw * env * tr.gain;
+      }
+      out[writeOffset + i] = Math.tanh(acc * 0.42);
+    }
+    writeOffset += stepSamples;
+  }
+  return out;
+}
+
+/** Single-voice loop (backwards compatible). */
 export function renderTrackerLoop(
   steps: TrackerStep[],
   bpm: number,
   waveform: ChipWaveform,
   duty: number,
 ): Float32Array {
-  const sr = CHIP_SAMPLE_RATE;
-  const stepSec = (60 / bpm) / 4;
-  const stepSamples = Math.max(1, Math.floor(stepSec * sr));
-  const fadeIn = Math.min(32, Math.floor(stepSamples * 0.02));
-  const fadeOut = Math.min(64, Math.floor(stepSamples * 0.04));
-  const chunks: Float32Array[] = [];
-
-  for (const step of steps) {
-    const buf = new Float32Array(stepSamples);
-    if (step == null || step <= 0) {
-      chunks.push(buf);
-      continue;
-    }
-    let phase = 0;
-    const noiseState = { seed: 0x600d };
-    for (let i = 0; i < stepSamples; i++) {
-      phase += step / sr;
-      if (phase > 1e6) phase %= 1;
-      let env = 1;
-      if (i < fadeIn) env = i / fadeIn;
-      const ri = stepSamples - 1 - i;
-      if (ri < fadeOut) env *= ri / fadeOut;
-      const raw = oscSample(waveform, phase, duty, noiseState);
-      buf[i] = raw * env * 0.7;
-    }
-    chunks.push(buf);
-  }
-
-  let total = 0;
-  for (const c of chunks) total += c.length;
-  const out = new Float32Array(total);
-  let o = 0;
-  for (const c of chunks) {
-    out.set(c, o);
-    o += c.length;
-  }
-  return out;
+  return renderMultiTrackerLoop([{ steps, waveform, duty, gain: 1 }], bpm);
 }
 
 const CHROMATIC_2_TO_3 = [
