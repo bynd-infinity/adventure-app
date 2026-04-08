@@ -256,26 +256,22 @@ function resolveEntrance(
       effects: [],
     };
   }
-  if (tier === "success") {
-    return {
-      outcomeTitle: "Listen",
-      outcomeMessage: line(
-        tier,
-        "You catch a second rhythm in the floorboards.",
-        rs,
-      ),
-      effects: [{ type: "set_flag", key: "entrance_listen_tuned" }],
-    };
-  }
   if (!flags.hall_callout_used) {
-    const ambushHp = flags.entrance_listen_tuned ? 1 : 2;
+    const ambushHp =
+      tier === "success"
+        ? 1
+        : flags.entrance_listen_tuned
+          ? 1
+          : 2;
     return {
       outcomeTitle: "Answered silence",
       outcomeMessage: line(
         tier,
         flags.entrance_listen_tuned
           ? "You half-expected an answer. The chill still bites, but you roll with it."
-          : "Something rushes the stairwell and catches you off balance.",
+          : tier === "success"
+            ? "The floorboards answer before you finish listening. Something comes to meet you."
+            : "Something rushes the stairwell and catches you off balance.",
         rs,
       ),
       effects: [
@@ -288,6 +284,17 @@ function resolveEntrance(
           resumeSceneId: "eh_hub",
         },
       ],
+    };
+  }
+  if (tier === "success") {
+    return {
+      outcomeTitle: "Listen",
+      outcomeMessage: line(
+        tier,
+        "You catch a second rhythm in the floorboards.",
+        rs,
+      ),
+      effects: [{ type: "set_flag", key: "entrance_listen_tuned" }],
     };
   }
   return {
@@ -307,6 +314,7 @@ function resolveLibrary(
   exitOk: boolean,
   flags: Record<string, boolean>,
   rs: string,
+  pacing: ExplorationPacingContext,
 ): ExplorationResolveOutput {
   if (action === "search") {
     const effects: StoryEffect[] = [];
@@ -355,6 +363,23 @@ function resolveLibrary(
         ],
       };
     }
+    if (tier === "success" && !pacing.combatTriggered) {
+      return {
+        outcomeTitle: "False Geometry",
+        outcomeMessage: line(
+          tier,
+          "One shelf depth is a lie at arm's length. The gap tightens; something is already behind it.",
+          rs,
+        ),
+        effects: [
+          {
+            type: "start_combat",
+            room: "library",
+            resumeSceneId: "eh_hub",
+          },
+        ],
+      };
+    }
     const detail =
       tier === "fail"
         ? "The marginal code resists quick reading."
@@ -365,6 +390,29 @@ function resolveLibrary(
       outcomeTitle: "Inspect",
       outcomeMessage: line(tier, detail, rs),
       effects: [],
+    };
+  }
+  if (tier === "success" && !pacing.combatTriggered) {
+    const curseHp = flags.library_listen_attuned ? 0 : 1;
+    return {
+      outcomeTitle: "Stack Curse",
+      outcomeMessage: line(
+        tier,
+        flags.library_listen_attuned
+          ? "The whisper almost lands; you give ground as the stacks close in."
+          : "Pages rustle with no wind. The aisle decides to keep you.",
+        rs,
+      ),
+      effects: [
+        ...(curseHp > 0
+          ? [{ type: "damage_player" as const, amount: curseHp }]
+          : []),
+        {
+          type: "start_combat",
+          room: "library",
+          resumeSceneId: "eh_hub",
+        },
+      ],
     };
   }
   if (tier === "strong" || tier === "critical") {
@@ -408,6 +456,7 @@ function resolveDining(
   exitOk: boolean,
   flags: Record<string, boolean>,
   rs: string,
+  pacing: ExplorationPacingContext,
 ): ExplorationResolveOutput {
   if (action === "search") {
     const effects: StoryEffect[] = [];
@@ -456,6 +505,23 @@ function resolveDining(
         ],
       };
     }
+    if (tier === "success" && !pacing.combatTriggered) {
+      return {
+        outcomeTitle: "Set for something",
+        outcomeMessage: line(
+          tier,
+          "Rank at the table is not decorative. The room decides you have seen too much.",
+          rs,
+        ),
+        effects: [
+          {
+            type: "start_combat",
+            room: "dining_room",
+            resumeSceneId: "eh_hub",
+          },
+        ],
+      };
+    }
     const detail =
       tier === "fail"
         ? "Crests and seat order blur before you can confirm the pattern."
@@ -466,6 +532,27 @@ function resolveDining(
       outcomeTitle: "Inspect",
       outcomeMessage: line(tier, detail, rs),
       effects: [],
+    };
+  }
+  if (tier === "success" && !pacing.combatTriggered) {
+    const bellHp = flags.dining_listen_attuned ? 0 : 1;
+    return {
+      outcomeTitle: "Silver bell",
+      outcomeMessage: line(
+        tier,
+        flags.dining_listen_attuned
+          ? "A bell hums under hearing; you clear the table edge as the room tenses."
+          : "Silver answers silver. The tone pins you in place for what comes next.",
+        rs,
+      ),
+      effects: [
+        ...(bellHp > 0 ? [{ type: "damage_player" as const, amount: bellHp }] : []),
+        {
+          type: "start_combat",
+          room: "dining_room",
+          resumeSceneId: "eh_hub",
+        },
+      ],
     };
   }
   if (tier === "strong" || tier === "critical") {
@@ -509,6 +596,7 @@ function resolveRegistry(
   exitOk: boolean,
   flags: Record<string, boolean>,
   rs: string,
+  pacing: ExplorationPacingContext,
 ): ExplorationResolveOutput {
   if (action === "search") {
     const effects: StoryEffect[] = [];
@@ -552,7 +640,39 @@ function resolveRegistry(
       effects.push({ type: "set_flag", key: "registry_names_staged" });
       effects.push({ type: "add_clue", clueId: "registry_forgery" });
     }
+    if (tier === "success" && !pacing.combatTriggered) {
+      return {
+        outcomeTitle: "Guest book pressure",
+        outcomeMessage: line(
+          tier,
+          "The ledger does not like being read this carefully. Ink lifts; something steps out of the margin.",
+          rs,
+        ),
+        effects: [
+          {
+            type: "start_combat",
+            room: "registry_gallery",
+            resumeSceneId: "eh_hub",
+          },
+        ],
+      };
+    }
     return { outcomeTitle: "Inspect", outcomeMessage: line(tier, detail, rs), effects };
+  }
+  if (tier === "success" && !pacing.combatTriggered) {
+    const hp = flags.registry_listen_attuned ? 0 : 1;
+    return {
+      outcomeTitle: "Portrait Sentry",
+      outcomeMessage: line(
+        tier,
+        "The gallery air tightens. Whatever keeps watch here decides you have stayed too long.",
+        rs,
+      ),
+      effects: [
+        ...(hp > 0 ? [{ type: "damage_player" as const, amount: hp }] : []),
+        { type: "start_combat", room: "registry_gallery", resumeSceneId: "eh_hub" },
+      ],
+    };
   }
   if (tier === "strong" || tier === "critical") {
     const hp = flags.registry_listen_attuned ? 1 : 2;
@@ -590,6 +710,7 @@ function resolveServants(
   exitOk: boolean,
   flags: Record<string, boolean>,
   rs: string,
+  pacing: ExplorationPacingContext,
 ): ExplorationResolveOutput {
   if (action === "search") {
     const effects: StoryEffect[] = [];
@@ -637,6 +758,23 @@ function resolveServants(
       effects.push({ type: "add_clue", clueId: "party_listed_route_board" });
     }
     return { outcomeTitle: "Inspect", outcomeMessage: line(tier, detail, rs), effects };
+  }
+  if (tier === "success" && !pacing.combatTriggered) {
+    const hp = flags.servants_listen_attuned ? 0 : 1;
+    return {
+      outcomeTitle: "Back-hall Ambush",
+      outcomeMessage: line(
+        tier,
+        flags.servants_listen_attuned
+          ? "Footfalls almost sync with yours. You turn as the corridor commits."
+          : "A runner's route ends at you. The back hall does not want witnesses.",
+        rs,
+      ),
+      effects: [
+        ...(hp > 0 ? [{ type: "damage_player" as const, amount: hp }] : []),
+        { type: "start_combat", room: "servants_corridor", resumeSceneId: "eh_hub" },
+      ],
+    };
   }
   if (tier === "strong" || tier === "critical") {
     const hp = flags.servants_listen_attuned ? 1 : 2;
@@ -748,16 +886,16 @@ export function resolveExplorationAction(
     return resolveEntrance(action, tier, flags, rollSuffixText, pacing);
   }
   if (room === "library") {
-    return resolveLibrary(action, tier, exitOk, flags, rollSuffixText);
+    return resolveLibrary(action, tier, exitOk, flags, rollSuffixText, pacing);
   }
   if (room === "registry_gallery") {
-    return resolveRegistry(action, tier, exitOk, flags, rollSuffixText);
+    return resolveRegistry(action, tier, exitOk, flags, rollSuffixText, pacing);
   }
   if (room === "servants_corridor") {
-    return resolveServants(action, tier, exitOk, flags, rollSuffixText);
+    return resolveServants(action, tier, exitOk, flags, rollSuffixText, pacing);
   }
   if (room === "dining_room") {
-    return resolveDining(action, tier, exitOk, flags, rollSuffixText);
+    return resolveDining(action, tier, exitOk, flags, rollSuffixText, pacing);
   }
   return resolveBoss(action, tier, rollSuffixText);
 }

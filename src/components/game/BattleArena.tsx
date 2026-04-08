@@ -4,7 +4,10 @@ import { useEffect, useMemo, useState } from "react";
 import type { RoomId } from "@/lib/story/rooms";
 import type { Enemy } from "@/types";
 import type { BattlePlayerPhase } from "@/lib/game/battleAnimation";
-import { battleViewBackdropForRoom } from "@/config/campaignAssets";
+import {
+  battleViewBackdropForRoom,
+  explorationBackdropForRoom,
+} from "@/config/campaignAssets";
 import { characterPortraitSrc, characterStrikeSrc } from "@/config/characters";
 import { EnemyPanel } from "./EnemyPanel";
 
@@ -83,7 +86,7 @@ export function BattleArena({
         src={bgSrc}
         alt=""
         className="absolute inset-0 z-0 h-full w-full object-cover"
-        onError={() => setBgSrc("/backgrounds/entrance-hall.png")}
+        onError={() => setBgSrc(explorationBackdropForRoom(roomId))}
       />
       <div className="battle-arena-scrim absolute inset-0 z-[1] bg-gradient-to-b from-black/55 via-black/20 to-black/80" />
       <div className="battle-arena-floor absolute inset-x-0 bottom-0 z-[2] h-1/3 bg-gradient-to-t from-zinc-950/90 to-transparent" />

@@ -1,9 +1,7 @@
 import type { RoomId } from "@/lib/story/rooms";
 
 /**
- * Phase 3 asset wiring:
- * - New rooms point to dedicated background paths (with current safe fallbacks).
- * - Enemy template ids map to sprite paths under /public/enemies.
+ * Exploration / story scenes — full-room plates under /public/backgrounds.
  */
 export const CAMPAIGN_ROOM_BACKGROUND: Record<RoomId, string> = {
   entrance_hall: "/backgrounds/entrance-hall.png",
@@ -14,13 +12,27 @@ export const CAMPAIGN_ROOM_BACKGROUND: Record<RoomId, string> = {
   boss_room: "/backgrounds/boss-room.png",
 };
 
-/** Fallback backgrounds while dedicated art is still being produced. */
+/** Fallbacks when a room plate is missing (legacy). */
 export const CAMPAIGN_ROOM_BACKGROUND_FALLBACK: Partial<Record<RoomId, string>> = {
   registry_gallery: "/backgrounds/entrance-hall.png",
   servants_corridor: "/backgrounds/dining-room.png",
   boss_room: "/backgrounds/entrance-hall.png",
 };
 
+/**
+ * Combat UI — dedicated battle plates under /public/backgrounds/battle.
+ * Falls back to exploration art if a file is absent.
+ */
+export const CAMPAIGN_BATTLE_BACKGROUND: Record<RoomId, string> = {
+  entrance_hall: "/backgrounds/battle/battle-entrance-hall.png",
+  registry_gallery: "/backgrounds/battle/battle-registry-gallery.png",
+  library: "/backgrounds/battle/battle-library.png",
+  servants_corridor: "/backgrounds/battle/battle-servants-corridor.png",
+  dining_room: "/backgrounds/battle/battle-dining-room.png",
+  boss_room: "/backgrounds/battle/battle-boss-room.png",
+};
+
+/** Enemy template id → sprite under /public/enemies (must match `ENEMY_TEMPLATES` ids). */
 export const ENEMY_SPRITE_BY_TEMPLATE: Record<string, string> = {
   restless_spirit: "/enemies/restless-spirit.png",
   cursed_doll: "/enemies/cursed-doll.png",
@@ -31,14 +43,16 @@ export const ENEMY_SPRITE_BY_TEMPLATE: Record<string, string> = {
   bound_spirit: "/enemies/bound-spirit.png",
 };
 
-/**
- * Battle arena uses the same room art as exploration until dedicated battle plates
- * exist under /public/backgrounds (see ASSET_GAPS.md).
- */
-export function battleViewBackdropForRoom(room: RoomId): string {
+/** Single URL for exploration-layer CSS (GameRuntime, etc.). */
+export function explorationBackdropForRoom(room: RoomId): string {
   return (
     CAMPAIGN_ROOM_BACKGROUND[room] ??
     CAMPAIGN_ROOM_BACKGROUND_FALLBACK[room] ??
     "/backgrounds/entrance-hall.png"
   );
+}
+
+/** Battle arena backdrop: battle plate first, then exploration plate. */
+export function battleViewBackdropForRoom(room: RoomId): string {
+  return CAMPAIGN_BATTLE_BACKGROUND[room] ?? explorationBackdropForRoom(room);
 }

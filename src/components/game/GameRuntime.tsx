@@ -41,10 +41,7 @@ import {
   activeCampaignHookFromFlags,
   bossOutcomeCardFromFlags,
 } from "@/lib/game/bossOutcome";
-import {
-  CAMPAIGN_ROOM_BACKGROUND,
-  CAMPAIGN_ROOM_BACKGROUND_FALLBACK,
-} from "@/config/campaignAssets";
+import { explorationBackdropForRoom } from "@/config/campaignAssets";
 import { DevGameTools } from "./DevGameTools";
 import { BattleArena } from "./BattleArena";
 import type { BattlePlayerPhase } from "@/lib/game/battleAnimation";
@@ -1791,10 +1788,7 @@ export function GameRuntime({
   const backgroundStyle =
     currentRoom === "boss_room"
       ? "url('/backgrounds/boss-room.png'), url('/backgrounds/entrance-hall.png')"
-      : `url('${
-          CAMPAIGN_ROOM_BACKGROUND_FALLBACK[currentRoom] ??
-          CAMPAIGN_ROOM_BACKGROUND[currentRoom]
-        }')`;
+      : `url('${explorationBackdropForRoom(currentRoom)}')`;
 
   const entranceIntroScene = getStoryScene(
     hauntedHouseEntrance,
