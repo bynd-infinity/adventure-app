@@ -36,6 +36,12 @@ export default function Home() {
             >
               Join with code
             </Link>
+            <Link
+              href="/options"
+              className="rounded-lg border border-emerald-500/45 bg-emerald-950/40 px-4 py-3 text-sm font-semibold uppercase tracking-wide text-emerald-100/95 hover:bg-emerald-900/45"
+            >
+              Options — 8-bit audio lab
+            </Link>
           </div>
         </main>
       </div>
