@@ -1760,7 +1760,7 @@ export function GameRuntime({ initialGameState, sessionId }: GameRuntimeProps) {
         {showHookLayer ? (
           <div className="absolute inset-0 z-40 flex items-center justify-center px-4">
             <div className="scene-card w-full max-w-3xl rounded-xl border border-amber-700/55 bg-zinc-950/90 p-6 text-center shadow-xl backdrop-blur-sm transition-all duration-300">
-              <h2 className="text-2xl font-semibold text-amber-100">Choose Your Hook</h2>
+              <h2 className="phosphor-glow text-2xl font-semibold text-amber-100">Choose Your Hook</h2>
               <p className="mt-2 text-sm text-zinc-300">
                 Why did your party enter Blackglass House?
               </p>
@@ -1784,7 +1784,7 @@ export function GameRuntime({ initialGameState, sessionId }: GameRuntimeProps) {
         {showPrologueLayer ? (
           <div className="absolute inset-0 z-40 flex items-center justify-center px-4">
             <div className="scene-card w-full max-w-2xl rounded-xl border border-amber-700/55 bg-zinc-950/86 p-6 text-center shadow-xl backdrop-blur-sm transition-all duration-300">
-              <h2 className="text-2xl font-semibold text-amber-100">The House Opens</h2>
+              <h2 className="phosphor-glow text-2xl font-semibold text-amber-100">The House Opens</h2>
               <p className="mt-4 text-base leading-relaxed text-zinc-200">
                 {HAUNTED_RUN_INTRO_CARDS[introCardIndex]}
               </p>
@@ -1808,7 +1808,7 @@ export function GameRuntime({ initialGameState, sessionId }: GameRuntimeProps) {
         {showClassSelectLayer ? (
           <div className="absolute inset-0 z-40 flex items-center justify-center px-4">
             <div className="scene-card w-full max-w-3xl rounded-xl border border-violet-700/60 bg-zinc-950/88 p-6 shadow-xl backdrop-blur-sm transition-all duration-300">
-              <h2 className="text-center text-2xl font-semibold text-violet-100">
+              <h2 className="phosphor-glow text-center text-2xl font-semibold text-violet-100">
                 Choose Class Roles
               </h2>
               <p className="mt-2 text-center text-sm text-zinc-300">
@@ -1882,7 +1882,7 @@ export function GameRuntime({ initialGameState, sessionId }: GameRuntimeProps) {
         {showIntroLayer ? (
           <div className="absolute inset-0 z-40 flex items-center justify-center px-4">
             <div className="scene-card w-full max-w-xl rounded-xl border border-violet-700/60 bg-zinc-950/85 p-6 text-center shadow-xl backdrop-blur-sm">
-              <h2 className="text-2xl font-semibold text-violet-100">
+              <h2 className="phosphor-glow text-2xl font-semibold text-violet-100">
                 {currentRoom === "entrance_hall" && entranceIntroScene?.type === "intro"
                   ? entranceIntroScene.roomTitle
                   : ROOM_LABELS[currentRoom]}
@@ -2052,7 +2052,7 @@ export function GameRuntime({ initialGameState, sessionId }: GameRuntimeProps) {
         {showResultLayer && resultCard ? (
           <div className="absolute inset-0 z-40 flex items-center justify-center px-4">
             <div className="scene-card w-full max-w-md rounded-xl border border-violet-700/60 bg-zinc-950/85 p-6 text-center shadow-xl backdrop-blur-sm">
-              <h2 className="text-2xl font-semibold text-violet-100">{resultCard.title}</h2>
+              <h2 className="phosphor-glow text-2xl font-semibold text-violet-100">{resultCard.title}</h2>
               <p className="mt-2 text-sm text-zinc-300">{resultCard.message}</p>
               <div className="mt-4 flex justify-center gap-2">
                 {resultCard.next === "run_complete" ? (

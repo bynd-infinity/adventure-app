@@ -140,6 +140,12 @@ body {
     transform: none !important;
   }
 
+  .phosphor-glow,
+  .phosphor-glow-soft {
+    text-shadow: none !important;
+    box-shadow: none !important;
+  }
+
   .decision-pending,
   .outcome-reveal {
     animation: none !important;
@@ -193,6 +199,16 @@ body {
 
 .crt-vignette {
   box-shadow: inset 0 0 120px rgba(0, 0, 0, 0.35);
+}
+
+.phosphor-glow {
+  text-shadow:
+    0 0 6px rgba(167, 139, 250, 0.32),
+    0 0 14px rgba(167, 139, 250, 0.2);
+}
+
+.phosphor-glow-soft {
+  box-shadow: 0 0 14px rgba(167, 139, 250, 0.12);
 }
 
 .scene-card {
