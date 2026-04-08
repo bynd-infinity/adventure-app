@@ -31,9 +31,21 @@ import {
   unlockedRoomsForRun,
 } from "@/config/campaignFlow";
 import {
+  BASE_DAMAGE,
+  DAMAGE_VARIANCE,
+  ROOM_TIMING_PROFILE,
+  UI_PULSE_MS,
+  UI_SHAKE_MS,
+} from "@/config/balance";
+import {
+  activeCampaignHookFromFlags,
+  bossOutcomeCardFromFlags,
+} from "@/lib/game/bossOutcome";
+import {
   CAMPAIGN_ROOM_BACKGROUND,
   CAMPAIGN_ROOM_BACKGROUND_FALLBACK,
 } from "@/config/campaignAssets";
+import { DevGameTools } from "./DevGameTools";
 import { getStoryScene } from "@/lib/story/engine";
 import {
   applyStandaloneMetaEffects,
@@ -156,19 +168,6 @@ const COMBAT_WIN_MID_ROOM: ResultCard = {
   next: "explore_more",
 };
 
-const BASE_DAMAGE = 5;
-const DAMAGE_VARIANCE = 2;
-const UI_PULSE_MS = 280;
-const UI_SHAKE_MS = 240;
-type TimingProfile = {
-  decisionLockMs: number;
-  combatTransitionMs: number;
-  combatWindupMs: number;
-  combatImpactMs: number;
-  combatEnemyWindupMs: number;
-  combatResolveGapMs: number;
-};
-
 const ROOM_LABELS: Record<RoomId, string> = {
   entrance_hall: "Entrance Hall",
   registry_gallery: "Registry Gallery",
@@ -195,57 +194,6 @@ const CAMPAIGN_HOOKS = [
     text: "Your family seal appears in this registry. Confirm why.",
   },
 ] as const;
-
-const ROOM_TIMING_PROFILE: Record<RoomId, TimingProfile> = {
-  entrance_hall: {
-    decisionLockMs: 540,
-    combatTransitionMs: 470,
-    combatWindupMs: 180,
-    combatImpactMs: 150,
-    combatEnemyWindupMs: 220,
-    combatResolveGapMs: 150,
-  },
-  registry_gallery: {
-    decisionLockMs: 560,
-    combatTransitionMs: 480,
-    combatWindupMs: 185,
-    combatImpactMs: 160,
-    combatEnemyWindupMs: 230,
-    combatResolveGapMs: 150,
-  },
-  library: {
-    decisionLockMs: 580,
-    combatTransitionMs: 500,
-    combatWindupMs: 190,
-    combatImpactMs: 165,
-    combatEnemyWindupMs: 240,
-    combatResolveGapMs: 155,
-  },
-  servants_corridor: {
-    decisionLockMs: 520,
-    combatTransitionMs: 450,
-    combatWindupMs: 165,
-    combatImpactMs: 145,
-    combatEnemyWindupMs: 205,
-    combatResolveGapMs: 135,
-  },
-  dining_room: {
-    decisionLockMs: 560,
-    combatTransitionMs: 485,
-    combatWindupMs: 185,
-    combatImpactMs: 160,
-    combatEnemyWindupMs: 235,
-    combatResolveGapMs: 150,
-  },
-  boss_room: {
-    decisionLockMs: 620,
-    combatTransitionMs: 560,
-    combatWindupMs: 210,
-    combatImpactMs: 175,
-    combatEnemyWindupMs: 260,
-    combatResolveGapMs: 170,
-  },
-};
 
 type CampaignHookId = (typeof CAMPAIGN_HOOKS)[number]["id"];
 
@@ -490,13 +438,6 @@ export function GameRuntime({ initialGameState, sessionId }: GameRuntimeProps) {
     setNarrationLog((prev) => [line, ...prev].slice(0, 4));
   }
 
-  function activeHook(flags: Record<string, boolean>): CampaignHookId | null {
-    if (flags.hook_debt_collector) return "hook_debt_collector";
-    if (flags.hook_missing_heir) return "hook_missing_heir";
-    if (flags.hook_broken_oath) return "hook_broken_oath";
-    return null;
-  }
-
   function waitMs(ms: number): Promise<void> {
     return new Promise((resolve) => window.setTimeout(resolve, ms));
   }
@@ -533,7 +474,7 @@ export function GameRuntime({ initialGameState, sessionId }: GameRuntimeProps) {
     }
 
     if (room === "boss_room") {
-      return bossOutcomeCard(storyFlags);
+      return bossOutcomeCardFromFlags(storyFlags);
     }
 
     return {
@@ -541,46 +482,6 @@ export function GameRuntime({ initialGameState, sessionId }: GameRuntimeProps) {
       message: "You can press onward through the haunted estate.",
       cta: "Leave Room",
       next: "room_select",
-    };
-  }
-
-  function bossOutcomeCard(flags: Record<string, boolean>): ResultCard {
-    const hook = activeHook(flags);
-    if (flags.ending_successor) {
-      return {
-        title: "Successor",
-        message:
-          hook === "hook_broken_oath"
-            ? "You take the title bound to your family line. The house accepts you."
-            : "You accept the contract and inherit the house.",
-        cta: "Return to Menu",
-        next: "run_complete",
-      };
-    }
-    if (flags.read_house_sigil && flags.registry_names_staged && flags.twist_party_listed) {
-      return {
-        title: "Severed",
-        message: "You break the contract at its true name. The house loses its claim.",
-        cta: "Return to Menu",
-        next: "run_complete",
-      };
-    }
-    if (flags.boss_seal_path) {
-      return {
-        title: "Bound Bargain",
-        message:
-          hook === "hook_debt_collector"
-            ? "You settle the claim in blood and steel. The house lets you leave."
-            : "You survive the final bargain. One clause still follows you.",
-        cta: "Return to Menu",
-        next: "run_complete",
-      };
-    }
-    return {
-      title: "Run Complete",
-      message: "The binding is broken. The house finally goes still.",
-      cta: "Return to Menu",
-      next: "run_complete",
     };
   }
 
@@ -677,7 +578,7 @@ export function GameRuntime({ initialGameState, sessionId }: GameRuntimeProps) {
 
     if (room === "registry_gallery" && !storyFlags.registry_gallery_seen) {
       setStoryFlags((prev) => ({ ...prev, registry_gallery_seen: true }));
-      const hook = activeHook(storyFlags);
+      const hook = activeCampaignHookFromFlags(storyFlags);
       const hookLine =
         hook === "hook_debt_collector"
           ? "A line item marked COLLECTOR is waiting at the bottom of the page."
@@ -710,7 +611,7 @@ export function GameRuntime({ initialGameState, sessionId }: GameRuntimeProps) {
     }
 
     if (room === "boss_room" && !storyFlags.boss_hook_seen) {
-      const hook = activeHook(storyFlags);
+      const hook = activeCampaignHookFromFlags(storyFlags);
       const hookLine =
         hook === "hook_debt_collector"
           ? "The altar ledger includes your debt claim with a blank signature line."
@@ -1377,7 +1278,7 @@ export function GameRuntime({ initialGameState, sessionId }: GameRuntimeProps) {
     if (sceneStage !== "choice" || choiceMode !== "room_action") return;
 
     if (currentRoom === "boss_room") {
-      const hook = activeHook(storyFlags);
+      const hook = activeCampaignHookFromFlags(storyFlags);
       if (choiceId === "seal") {
         setStoryFlags((prev) => ({ ...prev, boss_seal_path: true }));
         pushNarration(
@@ -1683,28 +1584,16 @@ export function GameRuntime({ initialGameState, sessionId }: GameRuntimeProps) {
         entries={discoveredJournalEntries}
       />
       {process.env.NODE_ENV === "development" ? (
-        <div className="pointer-events-none fixed bottom-2 left-2 z-[60] max-w-[14rem] rounded border border-zinc-600/40 bg-black/75 px-2 py-1 font-mono text-[10px] text-zinc-400">
-          <div className="font-semibold uppercase tracking-wide text-zinc-500">
-            story flags
-          </div>
-          <pre className="mt-0.5 max-h-24 overflow-y-auto whitespace-pre-wrap break-all">
-            {Object.keys(storyFlags).length === 0
-              ? "—"
-              : JSON.stringify(storyFlags, null, 0)}
-          </pre>
-          <div className="mt-1 text-zinc-500">
-            room: i={roomPacing.interactionCount} combat=
-            {roomPacing.combatTriggered ? (roomPacing.combatResolved ? "done" : "on") : "no"}{" "}
-            S/I/L
-            {roomPacing.usedSearch ? "1" : "0"}
-            {roomPacing.usedInspect ? "1" : "0"}
-            {roomPacing.usedListen ? "1" : "0"} exit=
-            {explorationCanExitRoom(roomPacing) ? "ok" : "no"}
-            {currentRoom === "entrance_hall"
-              ? ` sch=${roomPacing.entranceSearchPasses}`
-              : ""}
-          </div>
-        </div>
+        <DevGameTools
+          currentRoom={currentRoom}
+          roomPacing={roomPacing}
+          storyFlags={storyFlags}
+          onJumpRoom={(room) => enterRoom(room)}
+          onReplaceStoryFlags={(next) => setStoryFlags(next)}
+          onMergeStoryFlags={(patch) =>
+            setStoryFlags((prev) => ({ ...prev, ...patch }))
+          }
+        />
       ) : null}
       <div className="relative z-10 flex min-h-screen flex-1 flex-col pb-40">
         <GameTopBar scene={gameState.scene} phase={gameState.phase} />

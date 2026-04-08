@@ -22,6 +22,7 @@ Run deterministic checks before friend testing to validate progression, endings,
 - Class select: portraits and stat panel visible.
 - Journal: new clues unlock correctly (`registry_names_staged`, `twist_party_listed`).
 - Combat: impact animation and log order still coherent.
+- Automated: `npm run test` (boss ending priority + completion card copy in `src/lib/game/bossOutcome.test.ts`).
 - Build/lint: clean before each friend test drop.
 
 ## Friend Feedback Prompts
