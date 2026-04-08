@@ -27,6 +27,10 @@ import {
   type SceneDecisionStat,
 } from "@/config/story/hauntedHouseScenes";
 import {
+  campaignObjectiveFromState,
+  unlockedRoomsForRun,
+} from "@/config/campaignFlow";
+import {
   CAMPAIGN_ROOM_BACKGROUND,
   CAMPAIGN_ROOM_BACKGROUND_FALLBACK,
 } from "@/config/campaignAssets";
@@ -428,6 +432,9 @@ export function GameRuntime({ initialGameState, sessionId }: GameRuntimeProps) {
     null,
   );
   const [shakeScreen, setShakeScreen] = useState(false);
+  const [runStartMs] = useState(() => Date.now());
+  const [decisionCount, setDecisionCount] = useState(0);
+  const [combatCount, setCombatCount] = useState(0);
   const combatTransitionTimerRef = useRef<number | null>(null);
   const decisionResolveTimerRef = useRef<number | null>(null);
 
@@ -728,6 +735,7 @@ export function GameRuntime({ initialGameState, sessionId }: GameRuntimeProps) {
     room: RoomId,
     opts?: { entranceResumeSceneId?: string },
   ) {
+    setCombatCount((n) => n + 1);
     setRoomPacing((p) => ({ ...p, combatTriggered: true }));
     if (room === "entrance_hall" && opts?.entranceResumeSceneId) {
       setStoryCombatResumeSceneId(opts.entranceResumeSceneId);
@@ -962,6 +970,7 @@ export function GameRuntime({ initialGameState, sessionId }: GameRuntimeProps) {
 
     const decision = HAUNTED_ROOM_DECISIONS[currentRoom].find((d) => d.id === decisionId);
     if (!decision) return;
+    setDecisionCount((n) => n + 1);
     setPartyDecisionNote(`${hostPlayer?.name ?? "Host"} chose: ${decision.label}`);
     window.setTimeout(() => setPartyDecisionNote(null), 1200);
     setRoomSceneBeat((prev) => ({ ...prev, [currentRoom]: prev[currentRoom] + 1 }));
@@ -1569,32 +1578,21 @@ export function GameRuntime({ initialGameState, sessionId }: GameRuntimeProps) {
     currentRoom !== "boss_room" &&
     !roomExitCriteriaMet(roomPacing);
 
-  const investigativeWingCleared =
-    completedRooms.includes("registry_gallery") && completedRooms.includes("library");
-  const endWingCleared =
-    completedRooms.includes("servants_corridor") && completedRooms.includes("dining_room");
-  const availableRoomOptions: { id: RoomId; label: string }[] = [];
-  if (!completedRooms.includes("registry_gallery")) {
-    availableRoomOptions.push({
-      id: "registry_gallery",
-      label: "Go to Registry Gallery",
-    });
-  }
-  if (!completedRooms.includes("library")) {
-    availableRoomOptions.push({ id: "library", label: "Go to Library" });
-  }
-  if (investigativeWingCleared && !completedRooms.includes("servants_corridor")) {
-    availableRoomOptions.push({
-      id: "servants_corridor",
-      label: "Go to Servants' Corridor",
-    });
-  }
-  if (!completedRooms.includes("dining_room")) {
-    availableRoomOptions.push({ id: "dining_room", label: "Go to Dining Room" });
-  }
-  if (endWingCleared) {
-    availableRoomOptions.push({ id: "boss_room", label: "Enter Boss Room" });
-  }
+  const availableRoomOptions: { id: RoomId; label: string }[] = unlockedRoomsForRun(
+    completedRooms,
+  ).map((room) => ({
+    id: room,
+    label:
+      room === "boss_room"
+        ? "Enter Boss Room"
+        : room === "registry_gallery"
+          ? "Go to Registry Gallery"
+          : room === "servants_corridor"
+            ? "Go to Servants' Corridor"
+            : room === "library"
+              ? "Go to Library"
+              : "Go to Dining Room",
+  }));
 
   const backgroundStyle =
     currentRoom === "boss_room"
@@ -1616,6 +1614,12 @@ export function GameRuntime({ initialGameState, sessionId }: GameRuntimeProps) {
   const allClassesChosen = gameState.players.every((p) =>
     isValidPlayerClass(draftClasses[p.id] ?? ""),
   );
+  const objectiveLine = campaignObjectiveFromState(
+    currentRoom,
+    completedRooms,
+    storyFlags,
+  );
+  const runMinutes = Math.max(1, Math.round((Date.now() - runStartMs) / 60000));
 
   return (
     <div
@@ -1817,6 +1821,7 @@ export function GameRuntime({ initialGameState, sessionId }: GameRuntimeProps) {
               <div className="mt-4 grid gap-3 md:grid-cols-2">
                 {gameState.players.map((player) => {
                   const selected = draftClasses[player.id] ?? "";
+                  const selectedStats = initialRpgStatsForClass(selected);
                   return (
                     <div
                       key={player.id}
@@ -1826,7 +1831,7 @@ export function GameRuntime({ initialGameState, sessionId }: GameRuntimeProps) {
                       <p className="mt-1 text-xs text-zinc-500">
                         {selected ? `Selected: ${selected}` : "No class selected"}
                       </p>
-                      <div className="mt-2 grid grid-cols-2 gap-2">
+                      <div className="mt-3 grid grid-cols-2 gap-2">
                         {PLAYER_CLASSES.map((c) => (
                           <button
                             key={c}
@@ -1834,16 +1839,34 @@ export function GameRuntime({ initialGameState, sessionId }: GameRuntimeProps) {
                             onClick={() =>
                               setDraftClasses((prev) => ({ ...prev, [player.id]: c }))
                             }
-                            className={`rounded-md border px-2 py-1.5 text-xs ${
+                            className={`rounded-md border px-2 py-2 text-xs ${
                               selected === c
                                 ? "border-violet-400 bg-violet-900/45 text-violet-100"
                                 : "border-zinc-700 bg-zinc-900 text-zinc-300 hover:bg-zinc-800"
                             }`}
                           >
-                            {c}
+                            <div className="text-center">
+                              {characterPortraitSrc(c) ? (
+                                // eslint-disable-next-line @next/next/no-img-element -- local static portraits
+                                <img
+                                  src={characterPortraitSrc(c)!}
+                                  alt=""
+                                  className="mx-auto mb-1 h-14 w-14 object-contain object-bottom"
+                                />
+                              ) : null}
+                              <p className="font-semibold">{c}</p>
+                              <p className="mt-1 text-[10px] text-zinc-400">
+                                P{initialRpgStatsForClass(c).power} S{initialRpgStatsForClass(c).skill} M{initialRpgStatsForClass(c).mind} G{initialRpgStatsForClass(c).guard}
+                              </p>
+                            </div>
                           </button>
                         ))}
                       </div>
+                      {selected ? (
+                        <div className="mt-3 rounded border border-violet-700/40 bg-zinc-950/65 px-2 py-1.5 text-[11px] text-violet-100">
+                          Stats: Power {selectedStats.power} | Skill {selectedStats.skill} | Mind {selectedStats.mind} | Guard {selectedStats.guard}
+                        </div>
+                      ) : null}
                     </div>
                   );
                 })}
@@ -1926,6 +1949,9 @@ export function GameRuntime({ initialGameState, sessionId }: GameRuntimeProps) {
               <p className="mt-1 text-center text-xs text-zinc-400">
                 {hostPlayer ? `${hostPlayer.name} selects for the party.` : "Make a group call."}
               </p>
+              <div className="mt-2 rounded border border-violet-700/35 bg-zinc-900/70 px-2.5 py-2 text-center text-[11px] text-violet-100/95">
+                Objective: {objectiveLine}
+              </div>
               <div className="mt-3 grid gap-2 sm:grid-cols-2">
                 {HAUNTED_ROOM_DECISIONS[currentRoom].map((decision) => (
                   <button
@@ -1937,7 +1963,10 @@ export function GameRuntime({ initialGameState, sessionId }: GameRuntimeProps) {
                       pendingDecision?.label === decision.label ? "decision-pending" : ""
                     }`}
                   >
-                    {decision.label}
+                    <span className="block">{decision.label}</span>
+                    <span className="mt-1 block text-[10px] uppercase tracking-[0.12em] text-zinc-400">
+                      Risk: {decision.risk} | Focus: {decision.focus}
+                    </span>
                   </button>
                 ))}
               </div>
@@ -2054,6 +2083,11 @@ export function GameRuntime({ initialGameState, sessionId }: GameRuntimeProps) {
             <div className="scene-card w-full max-w-md rounded-xl border border-violet-700/60 bg-zinc-950/85 p-6 text-center shadow-xl backdrop-blur-sm">
               <h2 className="phosphor-glow text-2xl font-semibold text-violet-100">{resultCard.title}</h2>
               <p className="mt-2 text-sm text-zinc-300">{resultCard.message}</p>
+              {process.env.NODE_ENV === "development" ? (
+                <p className="mt-2 text-[10px] uppercase tracking-[0.14em] text-zinc-500">
+                  Run {runMinutes}m | decisions {decisionCount} | combats {combatCount}
+                </p>
+              ) : null}
               <div className="mt-4 flex justify-center gap-2">
                 {resultCard.next === "run_complete" ? (
                   <>

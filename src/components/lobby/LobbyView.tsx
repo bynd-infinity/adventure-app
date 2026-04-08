@@ -131,10 +131,18 @@ export function LobbyView({ session, players }: LobbyViewProps) {
   }
 
   return (
-    <div className="flex min-h-full flex-1 flex-col bg-zinc-950 px-6 py-10 text-white">
+    <div
+      className="crt-screen relative flex min-h-full flex-1 flex-col bg-zinc-950 px-6 py-10 text-white"
+      style={{ backgroundImage: "url('/backgrounds/title-screen.png')", backgroundSize: "cover", backgroundPosition: "center" }}
+    >
+      <div className="crt-scanlines pointer-events-none absolute inset-0 z-[3]" aria-hidden />
+      <div className="crt-vignette pointer-events-none absolute inset-0 z-[4]" aria-hidden />
+      <div className="pointer-events-none absolute inset-0 bg-black/72" aria-hidden />
+      <div className="relative z-10">
       <main className="mx-auto flex w-full max-w-lg flex-col gap-8">
         <header className="text-center">
-          <h1 className="text-3xl font-semibold">Lobby</h1>
+          <h1 className="title-joust phosphor-glow text-3xl md:text-4xl">Country Squire</h1>
+          <p className="campaign-subtitle mt-1 text-xs text-violet-200/90">Party Lobby</p>
           <p className="mt-2 text-sm font-medium text-violet-300">
             Mode: {session.mode === "solo" ? "Solo" : "Party"}
           </p>
@@ -237,6 +245,7 @@ export function LobbyView({ session, players }: LobbyViewProps) {
           </Link>
         </p>
       </main>
+      </div>
     </div>
   );
 }

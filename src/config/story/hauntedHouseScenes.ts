@@ -1,4 +1,5 @@
 import type { ExplorationActionKind } from "@/lib/game/explorationResolve";
+import type { DecisionFocus, DecisionRisk } from "@/config/campaignFlow";
 
 export type SceneDecisionStat = "skill" | "mind" | "guard" | "power";
 
@@ -7,6 +8,8 @@ export type HauntedSceneDecision = {
   label: string;
   action: ExplorationActionKind;
   stat: SceneDecisionStat;
+  risk: DecisionRisk;
+  focus: DecisionFocus;
 };
 
 export const HAUNTED_ROOM_INTRO = {
@@ -67,18 +70,24 @@ export const HAUNTED_ROOM_DECISIONS: Record<
       label: "Work the archway seam by seam",
       action: "search",
       stat: "skill",
+      risk: "low",
+      focus: "clue",
     },
     {
       id: "read_markings",
       label: "Line up molding marks and read their pattern",
       action: "inspect",
       stat: "mind",
+      risk: "medium",
+      focus: "clue",
     },
     {
       id: "listen_stairs",
       label: "Stand under the stairs and track the movement",
       action: "listen",
       stat: "guard",
+      risk: "high",
+      focus: "safety",
     },
   ],
   registry_gallery: [
@@ -87,18 +96,24 @@ export const HAUNTED_ROOM_DECISIONS: Record<
       label: "Compare tonight's signatures with older entries",
       action: "inspect",
       stat: "mind",
+      risk: "low",
+      focus: "clue",
     },
     {
       id: "check_frames",
       label: "Check behind the second and fifth gilt frames",
       action: "search",
       stat: "skill",
+      risk: "medium",
+      focus: "clue",
     },
     {
       id: "track_balcony_steps",
       label: "Track movement on the upper balcony",
       action: "listen",
       stat: "guard",
+      risk: "high",
+      focus: "safety",
     },
   ],
   library: [
@@ -107,18 +122,24 @@ export const HAUNTED_ROOM_DECISIONS: Record<
       label: "Pull false spines and test shelf backs",
       action: "search",
       stat: "skill",
+      risk: "medium",
+      focus: "clue",
     },
     {
       id: "decode_margins",
       label: "Cross-check marginal symbols against the index",
       action: "inspect",
       stat: "mind",
+      risk: "low",
+      focus: "clue",
     },
     {
       id: "track_whisper",
       label: "Pinpoint the whispering aisle without stepping in",
       action: "listen",
       stat: "guard",
+      risk: "high",
+      focus: "safety",
     },
   ],
   servants_corridor: [
@@ -127,18 +148,24 @@ export const HAUNTED_ROOM_DECISIONS: Record<
       label: "Trace marked routes between pantry and stair",
       action: "search",
       stat: "skill",
+      risk: "medium",
+      focus: "clue",
     },
     {
       id: "decode_route_tags",
       label: "Decode route tags and duty codes on the wall",
       action: "inspect",
       stat: "mind",
+      risk: "medium",
+      focus: "clue",
     },
     {
       id: "hold_at_bell_junction",
       label: "Hold at the bell junction and wait for the runner",
       action: "listen",
       stat: "guard",
+      risk: "high",
+      focus: "safety",
     },
   ],
   dining_room: [
@@ -147,18 +174,24 @@ export const HAUNTED_ROOM_DECISIONS: Record<
       label: "Search the sideboard and serving gaps",
       action: "search",
       stat: "skill",
+      risk: "medium",
+      focus: "clue",
     },
     {
       id: "read_place_settings",
       label: "Read the place settings as a social order",
       action: "inspect",
       stat: "mind",
+      risk: "medium",
+      focus: "clue",
     },
     {
       id: "watch_passages",
       label: "Hold for movement behind the service doors",
       action: "listen",
       stat: "guard",
+      risk: "high",
+      focus: "safety",
     },
   ],
   boss_room: [
@@ -167,18 +200,24 @@ export const HAUNTED_ROOM_DECISIONS: Record<
       label: "Trace chain anchors and altar cuts",
       action: "search",
       stat: "skill",
+      risk: "medium",
+      focus: "force",
     },
     {
       id: "read_wards",
       label: "Read the ward script for the intended failure point",
       action: "inspect",
       stat: "mind",
+      risk: "medium",
+      focus: "clue",
     },
     {
       id: "listen_binding",
       label: "Listen for strain in the binding ring",
       action: "listen",
       stat: "guard",
+      risk: "high",
+      focus: "force",
     },
   ],
 };

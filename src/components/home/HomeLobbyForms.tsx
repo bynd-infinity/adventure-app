@@ -54,8 +54,9 @@ export function HomeLobbyForms() {
   }
 
   return (
-    <div className="flex w-full max-w-md flex-col gap-10">
-      <form onSubmit={handleCreateParty} className="flex flex-col gap-3 text-left">
+    <div className="flex w-full max-w-3xl flex-col gap-6">
+      <div className="grid gap-5 md:grid-cols-2">
+      <form onSubmit={handleCreateParty} className="scene-card flex flex-col gap-3 rounded-xl border border-violet-700/45 bg-zinc-950/80 p-4 text-left">
         <h2 className="text-sm font-medium text-zinc-300">Create lobby</h2>
         <label className="flex flex-col gap-1 text-sm text-zinc-400">
           Host name
@@ -88,7 +89,7 @@ export function HomeLobbyForms() {
         </div>
       </form>
 
-      <form onSubmit={handleJoin} className="flex flex-col gap-3 text-left">
+      <form onSubmit={handleJoin} className="scene-card flex flex-col gap-3 rounded-xl border border-violet-700/45 bg-zinc-950/80 p-4 text-left">
         <h2 className="text-sm font-medium text-zinc-300">Join lobby</h2>
         <label className="flex flex-col gap-1 text-sm text-zinc-400">
           Your name
@@ -123,6 +124,7 @@ export function HomeLobbyForms() {
           Join Lobby
         </button>
       </form>
+      </div>
 
       {error ? (
         <p className="text-center text-sm text-red-400" role="alert">
