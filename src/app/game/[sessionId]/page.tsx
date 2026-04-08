@@ -52,6 +52,7 @@ export default async function GamePage({ params }: GamePageProps) {
     <GameRuntime
       initialGameState={gameState}
       sessionId={sessionId}
+      lobbyCode={session.code}
       lobbyDifficulty={session.difficulty}
       lobbyStoryHook={session.storyHook}
     />

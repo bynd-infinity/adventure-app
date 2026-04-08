@@ -3,7 +3,6 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Enemy, GameState, Player } from "@/types";
-import { characterPortraitSrc } from "@/config/characters";
 import { playerAttackRollMode } from "@/lib/game/combatAdvantage";
 import {
   applyIncomingDamageToEnemy,
@@ -67,11 +66,7 @@ import {
   TONIC_HEAL_FRACTION,
   type RunSuppliesState,
 } from "@/config/runSurvival";
-import {
-  PLAYER_CLASSES,
-  isValidPlayerClass,
-  type PlayerClassId,
-} from "@/lib/lobby/constants";
+import { isValidPlayerClass, type PlayerClassId } from "@/lib/lobby/constants";
 import { getStoredPlayerId } from "@/lib/lobby/storage";
 import {
   explorationCanExitRoom,
@@ -95,10 +90,13 @@ import { GameTopBar } from "./GameTopBar";
 import { PartyPanel } from "./PartyPanel";
 import { RunSuppliesBar } from "./RunSuppliesBar";
 import { SceneStage } from "./SceneStage";
+import { CharacterSelectLayer } from "./CharacterSelectLayer";
 
 type GameRuntimeProps = {
   initialGameState: GameState;
   sessionId: string;
+  /** Lobby join code — used to sync class picks across clients. */
+  lobbyCode: string;
   /** From session row; defaults to standard if missing. */
   lobbyDifficulty?: GameDifficulty | string | null;
   /** Campaign hook flag id, or null to choose in the run. */
@@ -354,6 +352,7 @@ function rewardNarrationLabel(rewardId: string): string {
 export function GameRuntime({
   initialGameState,
   sessionId,
+  lobbyCode,
   lobbyDifficulty: lobbyDifficultyProp,
   lobbyStoryHook,
 }: GameRuntimeProps) {
@@ -2014,96 +2013,32 @@ export function GameRuntime({
         ) : null}
 
         {showClassSelectLayer ? (
-          <div className="absolute inset-0 z-40 flex items-center justify-center px-4">
-            <div className="scene-card w-full max-w-3xl rounded-xl border border-violet-700/60 bg-zinc-950/88 p-6 shadow-xl backdrop-blur-sm transition-all duration-300">
-              <h2 className="phosphor-glow text-center text-2xl font-semibold text-violet-100">
-                Choose Class Roles
-              </h2>
-              <p className="mt-2 text-center text-sm text-zinc-300">
-                Make your picks before entering the first scene.
-              </p>
-              <div className="mt-4 grid gap-3 md:grid-cols-2">
-                {gameState.players.map((player) => {
-                  const selected = draftClasses[player.id] ?? "";
-                  const selectedStats = initialRpgStatsForClass(selected);
-                  return (
-                    <div
-                      key={player.id}
-                      className="rounded-lg border border-zinc-700/70 bg-zinc-900/70 p-3"
-                    >
-                      <p className="text-sm font-semibold text-zinc-100">{player.name}</p>
-                      <p className="mt-1 text-xs text-zinc-500">
-                        {selected ? `Selected: ${selected}` : "No class selected"}
-                      </p>
-                      <div className="mt-3 grid grid-cols-2 gap-2">
-                        {PLAYER_CLASSES.map((c) => (
-                          <button
-                            key={c}
-                            type="button"
-                            onClick={() =>
-                              setDraftClasses((prev) => ({ ...prev, [player.id]: c }))
-                            }
-                            className={`rounded-md border px-2 py-2 text-xs ${
-                              selected === c
-                                ? "border-violet-400 bg-violet-900/45 text-violet-100"
-                                : "border-zinc-700 bg-zinc-900 text-zinc-300 hover:bg-zinc-800"
-                            }`}
-                          >
-                            <div className="text-center">
-                              {characterPortraitSrc(c) ? (
-                                // eslint-disable-next-line @next/next/no-img-element -- local static portraits
-                                <img
-                                  src={characterPortraitSrc(c)!}
-                                  alt=""
-                                  className="mx-auto mb-1 h-14 w-14 object-contain object-bottom"
-                                />
-                              ) : null}
-                              <p className="font-semibold">{c}</p>
-                              <p className="mt-1 text-[10px] text-zinc-400">
-                                P{initialRpgStatsForClass(c).power} S{initialRpgStatsForClass(c).skill} M{initialRpgStatsForClass(c).mind} G{initialRpgStatsForClass(c).guard}
-                              </p>
-                            </div>
-                          </button>
-                        ))}
-                      </div>
-                      {selected ? (
-                        <div className="mt-3 rounded border border-violet-700/40 bg-zinc-950/65 px-2 py-1.5 text-[11px] text-violet-100">
-                          Stats: Power {selectedStats.power} | Skill {selectedStats.skill} | Mind {selectedStats.mind} | Guard {selectedStats.guard}
-                        </div>
-                      ) : null}
-                    </div>
-                  );
-                })}
-              </div>
-              <div className="mt-5 flex justify-center">
-                <button
-                  type="button"
-                  disabled={!allClassesChosen}
-                  onClick={() => {
-                    setGameState((prev) => ({
-                      ...prev,
-                      players: prev.players.map((p) => {
-                        const c = draftClasses[p.id] ?? "";
-                        const stats = initialRpgStatsForClass(c);
-                        return {
-                          ...p,
-                          class: c,
-                          power: stats.power,
-                          skill: stats.skill,
-                          mind: stats.mind,
-                          guard: stats.guard,
-                        };
-                      }),
-                    }));
-                    setSceneStage("intro");
-                  }}
-                  className="rounded-md border border-violet-500/60 bg-violet-950/40 px-5 py-2 text-sm text-violet-100 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  Enter the House
-                </button>
-              </div>
-            </div>
-          </div>
+          <CharacterSelectLayer
+            players={gameState.players}
+            draftClasses={draftClasses}
+            setDraftClasses={setDraftClasses}
+            allClassesChosen={allClassesChosen}
+            sessionId={sessionId}
+            lobbyCode={lobbyCode}
+            onConfirm={() => {
+              setGameState((prev) => ({
+                ...prev,
+                players: prev.players.map((p) => {
+                  const c = draftClasses[p.id] ?? "";
+                  const stats = initialRpgStatsForClass(c);
+                  return {
+                    ...p,
+                    class: c,
+                    power: stats.power,
+                    skill: stats.skill,
+                    mind: stats.mind,
+                    guard: stats.guard,
+                  };
+                }),
+              }));
+              setSceneStage("intro");
+            }}
+          />
         ) : null}
 
         {showIntroLayer ? (
